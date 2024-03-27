@@ -1,5 +1,5 @@
 import { useShallowObjectIdentity } from '@tldraw/editor'
-import { ComponentType, createContext, useContext, useMemo } from 'react'
+import { ComponentType, ReactNode, createContext, useContext, useMemo } from 'react'
 import {
 	DefaultActionsMenu,
 	TLUiActionsMenuProps,
@@ -9,6 +9,7 @@ import {
 	TLUiContextMenuProps,
 } from '../components/ContextMenu/DefaultContextMenu'
 import { DefaultDebugMenu } from '../components/DebugMenu/DefaultDebugMenu'
+import { DefaultDebugPanel } from '../components/DefaultDebugPanel'
 import { DefaultHelpMenu, TLUiHelpMenuProps } from '../components/HelpMenu/DefaultHelpMenu'
 import {
 	DefaultHelperButtons,
@@ -45,6 +46,7 @@ export interface BaseTLUiComponents {
 	KeyboardShortcutsDialog: ComponentType<TLUiKeyboardShortcutsDialogProps>
 	QuickActions: ComponentType<TLUiQuickActionsProps>
 	HelperButtons: ComponentType<TLUiHelperButtonsProps>
+	DebugPanel: ComponentType
 	DebugMenu: ComponentType
 	MenuPanel: ComponentType
 	TopPanel: ComponentType
@@ -61,7 +63,7 @@ const TldrawUiComponentsContext = createContext({} as TLUiComponents)
 /** @public */
 export type TLUiComponentsProviderProps = {
 	overrides?: TLUiComponents
-	children: any
+	children: ReactNode
 }
 
 /** @public */
@@ -88,6 +90,7 @@ export function TldrawUiComponentsProvider({
 					KeyboardShortcutsDialog: DefaultKeyboardShortcutsDialog,
 					QuickActions: DefaultQuickActions,
 					HelperButtons: DefaultHelperButtons,
+					DebugPanel: DefaultDebugPanel,
 					DebugMenu: DefaultDebugMenu,
 					MenuPanel: DefaultMenuPanel,
 					..._overrides,

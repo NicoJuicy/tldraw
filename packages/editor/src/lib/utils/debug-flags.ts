@@ -1,4 +1,5 @@
 import { Atom, atom, react } from '@tldraw/state'
+import { deleteFromSessionStorage, getFromSessionStorage, setInSessionStorage } from '@tldraw/utils'
 
 // --- 1. DEFINE ---
 //
@@ -52,7 +53,6 @@ export const debugFlags: Record<string, DebugFlag<boolean>> = {
 	forceSrgb: createDebugValue('forceSrgbColors', { defaults: { all: false } }),
 	debugGeometry: createDebugValue('debugGeometry', { defaults: { all: false } }),
 	hideShapes: createDebugValue('hideShapes', { defaults: { all: false } }),
-	documentName: createDebugValue('documentName', { defaults: { all: false } }),
 }
 
 declare global {
@@ -126,14 +126,10 @@ function createDebugValueBase<T>(def: DebugFlagDef<T>): DebugFlag<T> {
 		if (def.shouldStoreForSession) {
 			react(`debug:${def.name}`, () => {
 				const currentValue = valueAtom.get()
-				try {
-					if (currentValue === defaultValue) {
-						window.sessionStorage.removeItem(`tldraw_debug:${def.name}`)
-					} else {
-						window.sessionStorage.setItem(`tldraw_debug:${def.name}`, JSON.stringify(currentValue))
-					}
-				} catch {
-					// not a big deal
+				if (currentValue === defaultValue) {
+					deleteFromSessionStorage(`tldraw_debug:${def.name}`)
+				} else {
+					setInSessionStorage(`tldraw_debug:${def.name}`, JSON.stringify(currentValue))
 				}
 			})
 		}
@@ -154,7 +150,7 @@ function createDebugValueBase<T>(def: DebugFlagDef<T>): DebugFlag<T> {
 
 function getStoredInitialValue(name: string) {
 	try {
-		return JSON.parse(window?.sessionStorage.getItem(`tldraw_debug:${name}`) ?? 'null')
+		return JSON.parse(getFromSessionStorage(`tldraw_debug:${name}`) ?? 'null')
 	} catch (err) {
 		return null
 	}
