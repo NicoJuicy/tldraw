@@ -1,4 +1,3 @@
-import { ShapePropsType } from '@tldraw/tlschema/src/shapes/TLBaseShape'
 import {
 	DefaultColorStyle,
 	DefaultFontStyle,
@@ -9,6 +8,7 @@ import {
 	Geometry2d,
 	LABEL_FONT_SIZES,
 	Polygon2d,
+	RecordPropsType,
 	ShapeUtil,
 	T,
 	TEXT_PROPS,
@@ -20,9 +20,9 @@ import {
 	TextLabel,
 	Vec,
 	ZERO_INDEX_KEY,
-	getDefaultColorTheme,
 	resizeBox,
 	structuredClone,
+	useDefaultColorTheme,
 	vecModelValidator,
 } from 'tldraw'
 import { getSpeechBubbleVertices, getTailIntersectionPoint } from './helpers'
@@ -52,7 +52,7 @@ export const speechBubbleShapeProps = {
 	tail: vecModelValidator,
 }
 
-export type SpeechBubbleShapeProps = ShapePropsType<typeof speechBubbleShapeProps>
+export type SpeechBubbleShapeProps = RecordPropsType<typeof speechBubbleShapeProps>
 export type SpeechBubbleShape = TLBaseShape<'speech-bubble', SpeechBubbleShapeProps>
 
 export class SpeechBubbleUtil extends ShapeUtil<SpeechBubbleShape> {
@@ -64,8 +64,6 @@ export class SpeechBubbleUtil extends ShapeUtil<SpeechBubbleShape> {
 	override isAspectRatioLocked = (_shape: SpeechBubbleShape) => false
 
 	override canResize = (_shape: SpeechBubbleShape) => true
-
-	override canBind = (_shape: SpeechBubbleShape) => true
 
 	override canEdit = () => true
 
@@ -176,11 +174,11 @@ export class SpeechBubbleUtil extends ShapeUtil<SpeechBubbleShape> {
 			type,
 			props: { color, font, size, align, text },
 		} = shape
-		const theme = getDefaultColorTheme({
-			isDarkMode: this.editor.user.getIsDarkMode(),
-		})
 		const vertices = getSpeechBubbleVertices(shape)
 		const pathData = 'M' + vertices[0] + 'L' + vertices.slice(1) + 'Z'
+		const isSelected = shape.id === this.editor.getOnlySelectedShapeId()
+		// eslint-disable-next-line react-hooks/rules-of-hooks
+		const theme = useDefaultColorTheme()
 
 		return (
 			<>
@@ -192,17 +190,18 @@ export class SpeechBubbleUtil extends ShapeUtil<SpeechBubbleShape> {
 						fill={'none'}
 					/>
 				</svg>
-
 				<TextLabel
 					id={id}
 					type={type}
 					font={font}
+					textWidth={shape.props.w}
 					fontSize={LABEL_FONT_SIZES[size]}
 					lineHeight={TEXT_PROPS.lineHeight}
 					align={align}
 					verticalAlign="start"
 					text={text}
-					labelColor={color}
+					labelColor={theme[color].solid}
+					isSelected={isSelected}
 					wrap
 				/>
 			</>

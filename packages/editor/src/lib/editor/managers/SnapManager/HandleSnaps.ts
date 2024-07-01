@@ -47,6 +47,7 @@ export interface HandleSnapGeometry {
 const defaultGetSelfSnapOutline = () => null
 const defaultGetSelfSnapPoints = () => []
 
+/** @public */
 export class HandleSnaps {
 	readonly editor: Editor
 	constructor(readonly manager: SnapManager) {
@@ -133,10 +134,8 @@ export class HandleSnaps {
 		let minDistanceForSnapPoint = snapThreshold
 		let nearestSnapPoint: Vec | null = null
 		for (const snapPoint of this.iterateSnapPointsInPageSpace(currentShapeId, handle)) {
-			const distance = Vec.Dist(handleInPageSpace, snapPoint)
-
-			if (distance < minDistanceForSnapPoint) {
-				minDistanceForSnapPoint = distance
+			if (Vec.DistMin(handleInPageSpace, snapPoint, minDistanceForSnapPoint)) {
+				minDistanceForSnapPoint = Vec.Dist(handleInPageSpace, snapPoint)
 				nearestSnapPoint = snapPoint
 			}
 		}
@@ -154,10 +153,9 @@ export class HandleSnaps {
 
 			const nearestShapePointInShapeSpace = outline.nearestPoint(pointInShapeSpace)
 			const nearestInPageSpace = shapePageTransform.applyToPoint(nearestShapePointInShapeSpace)
-			const distance = Vec.Dist(handleInPageSpace, nearestInPageSpace)
 
-			if (distance < minDistanceForOutline) {
-				minDistanceForOutline = distance
+			if (Vec.DistMin(handleInPageSpace, nearestInPageSpace, minDistanceForOutline)) {
+				minDistanceForOutline = Vec.Dist(handleInPageSpace, nearestInPageSpace)
 				nearestPointOnOutline = nearestInPageSpace
 			}
 		}

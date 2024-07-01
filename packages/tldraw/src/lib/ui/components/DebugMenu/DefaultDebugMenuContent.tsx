@@ -29,7 +29,7 @@ import { TldrawUiMenuGroup } from '../primitives/menus/TldrawUiMenuGroup'
 import { TldrawUiMenuItem } from '../primitives/menus/TldrawUiMenuItem'
 import { TldrawUiMenuSubmenu } from '../primitives/menus/TldrawUiMenuSubmenu'
 
-/** @public */
+/** @public @react */
 export function DefaultDebugMenuContent() {
 	const editor = useEditor()
 	const { addToast } = useToasts()
@@ -153,26 +153,12 @@ export function DefaultDebugMenuContent() {
 					id="count-nodes"
 					label={'Count shapes / nodes'}
 					onSelect={() => {
-						function countDescendants({ children }: HTMLElement) {
-							let count = 0
-							if (!children.length) return 0
-							for (const el of [...(children as any)]) {
-								count++
-								count += countDescendants(el)
-							}
-							return count
-						}
 						const selectedShapes = editor.getSelectedShapes()
 						const shapes =
 							selectedShapes.length === 0 ? editor.getRenderingShapes() : selectedShapes
-						const elms = shapes.map(
-							(shape) => (document.getElementById(shape.id) as HTMLElement)!.parentElement!
+						window.alert(
+							`Shapes ${shapes.length}, DOM nodes:${document.querySelector('.tl-shapes')!.querySelectorAll('*')?.length}`
 						)
-						let descendants = elms.length
-						for (const elm of elms) {
-							descendants += countDescendants(elm)
-						}
-						window.alert(`Shapes ${shapes.length}, DOM nodes:${descendants}`)
 					}}
 				/>
 				{(() => {
@@ -191,7 +177,7 @@ export function DefaultDebugMenuContent() {
 		</>
 	)
 }
-/** @public */
+/** @public @react */
 export function DebugFlags() {
 	const items = Object.values(debugFlags)
 	if (!items.length) return null
@@ -205,7 +191,7 @@ export function DebugFlags() {
 		</TldrawUiMenuSubmenu>
 	)
 }
-/** @public */
+/** @public @react */
 export function FeatureFlags() {
 	const items = Object.values(featureFlags)
 	if (!items.length) return null
@@ -219,7 +205,19 @@ export function FeatureFlags() {
 		</TldrawUiMenuSubmenu>
 	)
 }
+
 /** @public */
+export interface ExampleDialogProps {
+	title?: string
+	body?: string
+	cancel?: string
+	confirm?: string
+	displayDontShowAgain?: boolean
+	onCancel: () => void
+	onContinue: () => void
+}
+
+/** @public @react */
 export function ExampleDialog({
 	title = 'title',
 	body = 'hello hello hello',
@@ -228,15 +226,7 @@ export function ExampleDialog({
 	displayDontShowAgain = false,
 	onCancel,
 	onContinue,
-}: {
-	title?: string
-	body?: string
-	cancel?: string
-	confirm?: string
-	displayDontShowAgain?: boolean
-	onCancel: () => void
-	onContinue: () => void
-}) {
+}: ExampleDialogProps) {
 	const [dontShowAgain, setDontShowAgain] = React.useState(false)
 
 	return (
@@ -254,7 +244,7 @@ export function ExampleDialog({
 						style={{ marginRight: 'auto' }}
 					>
 						<TldrawUiButtonCheck checked={dontShowAgain} />
-						<TldrawUiButtonLabel>Don't show again</TldrawUiButtonLabel>
+						<TldrawUiButtonLabel>Don’t show again</TldrawUiButtonLabel>
 					</TldrawUiButton>
 				)}
 				<TldrawUiButton type="normal" onClick={onCancel}>

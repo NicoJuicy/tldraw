@@ -1,16 +1,15 @@
 import {
 	Box,
 	DefaultFontFamilies,
-	TLDefaultColorStyle,
 	TLDefaultFontStyle,
 	TLDefaultHorizontalAlignStyle,
 	TLDefaultVerticalAlignStyle,
 	useEditor,
 } from '@tldraw/editor'
-import { useDefaultColorTheme } from './ShapeFill'
 import { createTextJsxFromSpans } from './createTextJsxFromSpans'
 import { TEXT_PROPS } from './default-shape-constants'
 import { getLegacyOffsetX } from './legacyProps'
+import { useDefaultColorTheme } from './useDefaultColorTheme'
 
 export function SvgTextLabel({
 	fontSize,
@@ -30,7 +29,7 @@ export function SvgTextLabel({
 	verticalAlign: TLDefaultVerticalAlignStyle
 	wrap?: boolean
 	text: string
-	labelColor: TLDefaultColorStyle
+	labelColor: string
 	bounds: Box
 	padding?: number
 	stroke?: boolean
@@ -52,7 +51,7 @@ export function SvgTextLabel({
 		overflow: 'wrap' as const,
 		offsetX: 0,
 		offsetY: 0,
-		fill: theme[labelColor].solid,
+		fill: labelColor,
 		stroke: undefined as string | undefined,
 		strokeWidth: undefined as number | undefined,
 	}

@@ -10,7 +10,7 @@ export interface TLUiStylePanelProps {
 	children?: ReactNode
 }
 
-/** @public */
+/** @public @react */
 export const DefaultStylePanel = memo(function DefaultStylePanel({
 	isMobile,
 	children,
@@ -21,7 +21,7 @@ export const DefaultStylePanel = memo(function DefaultStylePanel({
 
 	const handlePointerOut = useCallback(() => {
 		if (!isMobile) {
-			editor.updateInstanceState({ isChangingStyle: false }, { ephemeral: true })
+			editor.updateInstanceState({ isChangingStyle: false })
 		}
 	}, [editor, isMobile])
 

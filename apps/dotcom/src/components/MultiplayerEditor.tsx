@@ -1,3 +1,4 @@
+import { ROOM_OPEN_MODE, RoomOpenModeToPath, type RoomOpenMode } from '@tldraw/dotcom-shared'
 import { useCallback, useEffect } from 'react'
 import {
 	DefaultContextMenu,
@@ -18,12 +19,12 @@ import {
 	TldrawUiMenuItem,
 	ViewSubmenu,
 	atom,
-	lns,
 	useActions,
 	useValue,
 } from 'tldraw'
 import { useRemoteSyncClient } from '../hooks/useRemoteSyncClient'
 import { UrlStateParams, useUrlState } from '../hooks/useUrlState'
+import { resolveAsset } from '../utils/assetHandler'
 import { assetUrls } from '../utils/assetUrls'
 import { MULTIPLAYER_SERVER } from '../utils/config'
 import { CursorChatMenuItem } from '../utils/context-menu/CursorChatMenuItem'
@@ -104,19 +105,17 @@ const components: TLComponents = {
 }
 
 export function MultiplayerEditor({
-	isReadOnly,
+	roomOpenMode,
 	roomSlug,
 }: {
-	isReadOnly: boolean
+	roomOpenMode: RoomOpenMode
 	roomSlug: string
 }) {
 	const handleUiEvent = useHandleUiEvents()
 
-	const roomId = isReadOnly ? lns(roomSlug) : roomSlug
-
 	const storeWithStatus = useRemoteSyncClient({
-		uri: `${MULTIPLAYER_SERVER}/r/${roomId}`,
-		roomId,
+		uri: `${MULTIPLAYER_SERVER}/${RoomOpenModeToPath[roomOpenMode]}/${roomSlug}`,
+		roomId: roomSlug,
 	})
 
 	const isOffline =
@@ -128,16 +127,22 @@ export function MultiplayerEditor({
 	const sharingUiOverrides = useSharing()
 	const fileSystemUiOverrides = useFileSystem({ isMultiplayer: true })
 	const cursorChatOverrides = useCursorChat()
+	const isReadonly =
+		roomOpenMode === ROOM_OPEN_MODE.READ_ONLY || roomOpenMode === ROOM_OPEN_MODE.READ_ONLY_LEGACY
 
 	const handleMount = useCallback(
 		(editor: Editor) => {
-			;(window as any).app = editor
-			;(window as any).editor = editor
-			editor.updateInstanceState({ isReadonly: isReadOnly })
+			if (!isReadonly) {
+				;(window as any).app = editor
+				;(window as any).editor = editor
+			}
+			editor.updateInstanceState({
+				isReadonly,
+			})
 			editor.registerExternalAssetHandler('file', createAssetFromFile)
 			editor.registerExternalAssetHandler('url', createAssetFromUrl)
 		},
-		[isReadOnly]
+		[isReadonly]
 	)
 
 	if (storeWithStatus.error) {
@@ -151,10 +156,10 @@ export function MultiplayerEditor({
 				assetUrls={assetUrls}
 				onMount={handleMount}
 				overrides={[sharingUiOverrides, fileSystemUiOverrides, cursorChatOverrides]}
-				initialState={isReadOnly ? 'hand' : 'select'}
+				initialState={isReadonly ? 'hand' : 'select'}
 				onUiEvent={handleUiEvent}
 				components={components}
-				autoFocus
+				assetOptions={{ onResolveAsset: resolveAsset() }}
 				inferDarkMode
 			>
 				<UrlStateSync />

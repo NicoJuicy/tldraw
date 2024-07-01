@@ -5,7 +5,7 @@ import { SetValue } from '../util-types'
  * The handle types used by tldraw's default shapes.
  *
  * @public */
-export const TL_HANDLE_TYPES = new Set(['vertex', 'virtual', 'create'] as const)
+export const TL_HANDLE_TYPES = new Set(['vertex', 'virtual', 'create', 'clone'] as const)
 
 /**
  * A type for the handle types used by tldraw's default shapes.
@@ -22,7 +22,6 @@ export interface TLHandle {
 	/** A unique identifier for the handle. */
 	id: string
 	type: TLHandleType
-	canBind?: boolean
 	canSnap?: boolean
 	index: IndexKey
 	x: number

@@ -7,6 +7,7 @@ const throttleToNextFrame =
 		? // At test time we should use actual raf and not throttle, because throttle was set up to evaluate immediately during tests, which causes stack overflow
 			// for the tick manager since it sets up a raf loop.
 			function mockThrottle(cb: any) {
+				// eslint-disable-next-line no-restricted-globals
 				const frame = requestAnimationFrame(cb)
 				return () => cancelAnimationFrame(frame)
 			}
@@ -20,13 +21,13 @@ export class TickManager {
 
 	cancelRaf?: null | (() => void)
 	isPaused = true
-	last = 0
+	now = 0
 
 	start = () => {
 		this.isPaused = false
 		this.cancelRaf?.()
 		this.cancelRaf = throttleToNextFrame(this.tick)
-		this.last = Date.now()
+		this.now = Date.now()
 	}
 
 	tick = () => {
@@ -35,8 +36,8 @@ export class TickManager {
 		}
 
 		const now = Date.now()
-		const elapsed = now - this.last
-		this.last = now
+		const elapsed = now - this.now
+		this.now = now
 
 		this.updatePointerVelocity(elapsed)
 		this.editor.emit('frame', elapsed)

@@ -16,6 +16,7 @@ export type TLPointerEventTarget =
 export type TLPointerEventName =
 	| 'pointer_down'
 	| 'pointer_move'
+	| 'long_press'
 	| 'pointer_up'
 	| 'right_click'
 	| 'middle_click'
@@ -95,13 +96,26 @@ export type TLWheelEventInfo = TLBaseEventInfo & {
 }
 
 /** @public */
-export type TLCancelEventInfo = { type: 'misc'; name: 'cancel' }
+export interface TLCancelEventInfo {
+	type: 'misc'
+	name: 'cancel'
+}
 /** @public */
-export type TLCompleteEventInfo = { type: 'misc'; name: 'complete' }
+export interface TLCompleteEventInfo {
+	type: 'misc'
+	name: 'complete'
+}
 /** @public */
-export type TLInterruptEventInfo = { type: 'misc'; name: 'interrupt' }
+export interface TLInterruptEventInfo {
+	type: 'misc'
+	name: 'interrupt'
+}
 /** @public */
-export type TLTickEventInfo = { type: 'misc'; name: 'tick'; elapsed: number }
+export interface TLTickEventInfo {
+	type: 'misc'
+	name: 'tick'
+	elapsed: number
+}
 
 /** @public */
 export type TLEventInfo =
@@ -152,6 +166,7 @@ export type TLExitEventHandler = (info: any, to: string) => void
 export interface TLEventHandlers {
 	onPointerDown: TLPointerEvent
 	onPointerMove: TLPointerEvent
+	onLongPress: TLPointerEvent
 	onRightClick: TLPointerEvent
 	onDoubleClick: TLClickEvent
 	onTripleClick: TLClickEvent
@@ -176,6 +191,7 @@ export const EVENT_NAME_MAP: Record<
 	wheel: 'onWheel',
 	pointer_down: 'onPointerDown',
 	pointer_move: 'onPointerMove',
+	long_press: 'onLongPress',
 	pointer_up: 'onPointerUp',
 	right_click: 'onRightClick',
 	middle_click: 'onMiddleClick',

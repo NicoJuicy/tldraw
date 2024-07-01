@@ -10,24 +10,20 @@ import {
 	createTLStore,
 	noop,
 } from '@tldraw/editor'
+import { StrictMode } from 'react'
 import { defaultTools } from '../lib/defaultTools'
 import { GeoShapeUtil } from '../lib/shapes/geo/GeoShapeUtil'
 import { renderTldrawComponent } from './testutils/renderTldrawComponent'
 
 function checkAllShapes(editor: Editor, shapes: string[]) {
-	expect(Object.keys(editor!.store.schema.types.shape.migrations.subTypeMigrations!)).toStrictEqual(
-		shapes
-	)
-
 	expect(Object.keys(editor!.shapeUtils)).toStrictEqual(shapes)
 }
 
 describe('<TldrawEditor />', () => {
 	it('Renders without crashing', async () => {
-		await renderTldrawComponent(
-			<TldrawEditor tools={defaultTools} autoFocus initialState="select" />,
-			{ waitForPatterns: false }
-		)
+		await renderTldrawComponent(<TldrawEditor tools={defaultTools} initialState="select" />, {
+			waitForPatterns: false,
+		})
 		await screen.findByTestId('canvas')
 	})
 
@@ -40,7 +36,6 @@ describe('<TldrawEditor />', () => {
 				}}
 				initialState="select"
 				tools={defaultTools}
-				autoFocus
 			/>,
 			{ waitForPatterns: false }
 		)
@@ -57,7 +52,6 @@ describe('<TldrawEditor />', () => {
 				onMount={(e) => {
 					editor = e
 				}}
-				autoFocus
 			/>,
 			{ waitForPatterns: false }
 		)
@@ -76,7 +70,6 @@ describe('<TldrawEditor />', () => {
 				onMount={(editor) => {
 					expect(editor.store).toBe(store)
 				}}
-				autoFocus
 			/>,
 			{ waitForPatterns: false }
 		)
@@ -89,7 +82,6 @@ describe('<TldrawEditor />', () => {
 		// 		<TldrawEditor
 		// 			shapeUtils={[GroupShapeUtil]}
 		// 			store={createTLStore({ shapeUtils: [] })}
-		// 			autoFocus
 		// 			components={{
 		// 				ErrorFallback: ({ error }) => {
 		// 					throw error
@@ -107,7 +99,6 @@ describe('<TldrawEditor />', () => {
 		// 		render(
 		// 			<TldrawEditor
 		// 				store={createTLStore({ shapeUtils: [GroupShapeUtil] })}
-		// 				autoFocus
 		// 				components={{
 		// 					ErrorFallback: ({ error }) => {
 		// 						throw error
@@ -132,7 +123,6 @@ describe('<TldrawEditor />', () => {
 				tools={defaultTools}
 				store={initialStore}
 				onMount={onMount}
-				autoFocus
 			/>
 		)
 		const initialEditor = onMount.mock.lastCall[0]
@@ -145,7 +135,6 @@ describe('<TldrawEditor />', () => {
 				initialState="select"
 				store={initialStore}
 				onMount={onMount}
-				autoFocus
 			/>
 		)
 		// not called again:
@@ -153,13 +142,7 @@ describe('<TldrawEditor />', () => {
 		// re-render with a new store:
 		const newStore = createTLStore({ shapeUtils: [] })
 		rendered.rerender(
-			<TldrawEditor
-				tools={defaultTools}
-				initialState="select"
-				store={newStore}
-				onMount={onMount}
-				autoFocus
-			/>
+			<TldrawEditor tools={defaultTools} initialState="select" store={newStore} onMount={onMount} />
 		)
 		expect(initialEditor.dispose).toHaveBeenCalledTimes(1)
 		expect(onMount).toHaveBeenCalledTimes(2)
@@ -173,7 +156,6 @@ describe('<TldrawEditor />', () => {
 				shapeUtils={[GeoShapeUtil]}
 				initialState="select"
 				tools={defaultTools}
-				autoFocus
 				onMount={(editorApp) => {
 					editor = editorApp
 				}}
@@ -183,10 +165,7 @@ describe('<TldrawEditor />', () => {
 
 		expect(editor).toBeTruthy()
 		await act(async () => {
-			editor.updateInstanceState(
-				{ screenBounds: { x: 0, y: 0, w: 1080, h: 720 } },
-				{ ephemeral: true, squashing: true }
-			)
+			editor.updateInstanceState({ screenBounds: { x: 0, y: 0, w: 1080, h: 720 } })
 		})
 
 		const id = createShapeId()
@@ -213,15 +192,14 @@ describe('<TldrawEditor />', () => {
 
 		// Is the shape's component rendering?
 		expect(document.querySelectorAll('.tl-shape')).toHaveLength(1)
-
-		expect(document.querySelectorAll('.tl-shape-indicator')).toHaveLength(0)
+		// though indicator should be display none
+		expect(document.querySelectorAll('.tl-shape-indicator')).toHaveLength(1)
 
 		// Select the shape
 		await act(async () => editor.select(id))
 
 		expect(editor.getSelectedShapeIds().length).toBe(1)
-
-		// Is the shape's component rendering?
+		// though indicator it should be visible
 		expect(document.querySelectorAll('.tl-shape-indicator')).toHaveLength(1)
 
 		// Select the eraser tool...
@@ -229,6 +207,24 @@ describe('<TldrawEditor />', () => {
 
 		// Is the editor's current tool correct?
 		expect(editor.getCurrentToolId()).toBe('eraser')
+	})
+
+	it('renders correctly in strict mode', async () => {
+		const editorInstances = new Set<Editor>()
+		const onMount = jest.fn((editor: Editor) => {
+			editorInstances.add(editor)
+		})
+		await renderTldrawComponent(
+			<StrictMode>
+				<TldrawEditor tools={defaultTools} initialState="select" onMount={onMount} />
+			</StrictMode>,
+			{ waitForPatterns: false }
+		)
+
+		// we should only get one editor instance
+		expect(editorInstances.size).toBe(1)
+		// but strict mode will cause onMount to be called twice
+		expect(onMount).toHaveBeenCalledTimes(2)
 	})
 })
 
@@ -246,7 +242,6 @@ describe('Custom shapes', () => {
 
 		override isAspectRatioLocked = (_shape: CardShape) => false
 		override canResize = (_shape: CardShape) => true
-		override canBind = (_shape: CardShape) => true
 
 		override getDefaultProps(): CardShape['props'] {
 			return {
@@ -293,7 +288,6 @@ describe('Custom shapes', () => {
 			<TldrawEditor
 				shapeUtils={shapeUtils}
 				tools={[...defaultTools, ...tools]}
-				autoFocus
 				initialState="select"
 				onMount={(editorApp) => {
 					editor = editorApp
@@ -304,10 +298,7 @@ describe('Custom shapes', () => {
 
 		expect(editor).toBeTruthy()
 		await act(async () => {
-			editor.updateInstanceState(
-				{ screenBounds: { x: 0, y: 0, w: 1080, h: 720 } },
-				{ ephemeral: true, squashing: true }
-			)
+			editor.updateInstanceState({ screenBounds: { x: 0, y: 0, w: 1080, h: 720 } })
 		})
 
 		expect(editor.shapeUtils.card).toBeTruthy()

@@ -1,5 +1,5 @@
 import { StateNode, TLEventHandlers } from '@tldraw/editor'
-import { updateHoveredId } from '../../../tools/selection-logic/updateHoveredId'
+import { updateHoveredShapeId } from '../../../tools/selection-logic/updateHoveredShapeId'
 
 export class Idle extends StateNode {
 	static override id = 'idle'
@@ -8,7 +8,7 @@ export class Idle extends StateNode {
 		switch (info.target) {
 			case 'shape':
 			case 'canvas': {
-				updateHoveredId(this.editor)
+				updateHoveredShapeId(this.editor)
 			}
 		}
 	}
@@ -19,6 +19,10 @@ export class Idle extends StateNode {
 
 	override onEnter = () => {
 		this.editor.setCursor({ type: 'cross', rotation: 0 })
+	}
+
+	override onExit = () => {
+		updateHoveredShapeId.cancel()
 	}
 
 	override onKeyDown: TLEventHandlers['onKeyDown'] = (info) => {

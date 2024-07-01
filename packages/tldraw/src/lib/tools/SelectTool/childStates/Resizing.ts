@@ -13,12 +13,14 @@ import {
 	TLShape,
 	TLShapeId,
 	TLShapePartial,
+	TLTextShape,
+	TLTickEventInfo,
 	Vec,
 	VecLike,
 	areAnglesCompatible,
 	compact,
-	moveCameraWhenCloseToEdge,
 } from '@tldraw/editor'
+import { kickoutOccludedShapes } from '../selectHelpers'
 
 type ResizingInfo = TLPointerEventInfo & {
 	target: 'selection'
@@ -60,10 +62,7 @@ export class Resizing extends StateNode {
 		if (isCreating) {
 			this.markId = `creating:${this.editor.getOnlySelectedShape()!.id}`
 
-			this.editor.updateInstanceState(
-				{ cursor: { type: 'cross', rotation: 0 } },
-				{ ephemeral: true }
-			)
+			this.editor.setCursor({ type: 'cross', rotation: 0 })
 		} else {
 			this.markId = 'starting resizing'
 			this.editor.mark(this.markId)
@@ -73,8 +72,9 @@ export class Resizing extends StateNode {
 		this.updateShapes()
 	}
 
-	override onTick = () => {
-		moveCameraWhenCloseToEdge(this.editor)
+	override onTick = ({ elapsed }: TLTickEventInfo) => {
+		const { editor } = this
+		editor.edgeScrollManager.updateEdgeScrolling(elapsed)
 	}
 
 	override onPointerMove: TLEventHandlers['onPointerMove'] = () => {
@@ -111,6 +111,8 @@ export class Resizing extends StateNode {
 	}
 
 	private complete() {
+		kickoutOccludedShapes(this.editor, this.snapshot.selectedShapeIds)
+
 		this.handleResizeEnd()
 
 		if (this.info.isCreating && this.info.onCreate) {
@@ -175,7 +177,14 @@ export class Resizing extends StateNode {
 			canShapesDeform,
 		} = this.snapshot
 
-		const isAspectRatioLocked = shiftKey || !canShapesDeform
+		let isAspectRatioLocked = shiftKey || !canShapesDeform
+
+		if (shapeSnapshots.size === 1) {
+			const onlySnapshot = [...shapeSnapshots.values()][0]!
+			if (this.editor.isShapeOfType<TLTextShape>(onlySnapshot.shape, 'text')) {
+				isAspectRatioLocked = !(this.info.handle === 'left' || this.info.handle === 'right')
+			}
+		}
 
 		// first negate the 'cursor handle offset'
 		// we need to do this because we do grid snapping based on the page point of the handle
@@ -216,6 +225,7 @@ export class Resizing extends StateNode {
 			.clone()
 			.sub(cursorHandleOffset)
 			.sub(this.creationCursorOffset)
+
 		const originPagePoint = this.editor.inputs.originPagePoint.clone().sub(cursorHandleOffset)
 
 		if (this.editor.getInstanceState().isGridMode && !ctrlKey) {
@@ -252,6 +262,8 @@ export class Resizing extends StateNode {
 
 		// calculate the scale by measuring the current distance between the drag handle and the scale origin
 		// and dividing by the original distance between the drag handle and the scale origin
+
+		// bug: for edges, the page point doesn't matter, the
 
 		const distanceFromScaleOriginNow = Vec.Sub(currentPagePoint, scaleOriginPage).rot(
 			-selectionRotation
@@ -316,7 +328,9 @@ export class Resizing extends StateNode {
 						? 'resize_bounds'
 						: 'scale_shape',
 				scaleOrigin: scaleOriginPage,
+				isAspectRatioLocked,
 				scaleAxisRotation: selectionRotation,
+				skipStartAndEndCallbacks: true,
 			})
 		}
 
@@ -404,10 +418,7 @@ export class Resizing extends StateNode {
 
 	override onExit = () => {
 		this.parent.setCurrentToolIdMask(undefined)
-		this.editor.updateInstanceState(
-			{ cursor: { type: 'default', rotation: 0 } },
-			{ ephemeral: true }
-		)
+		this.editor.setCursor({ type: 'default', rotation: 0 })
 		this.editor.snaps.clearIndicators()
 	}
 

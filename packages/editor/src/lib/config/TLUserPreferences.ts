@@ -1,7 +1,6 @@
 import { atom } from '@tldraw/state'
-import { defineMigrations, migrate } from '@tldraw/store'
 import { getDefaultTranslationLocale } from '@tldraw/tlschema'
-import { getFromLocalStorage, setInLocalStorage } from '@tldraw/utils'
+import { getFromLocalStorage, setInLocalStorage, structuredClone } from '@tldraw/utils'
 import { T } from '@tldraw/validate'
 import { uniqueId } from '../utils/uniqueId'
 
@@ -19,9 +18,10 @@ export interface TLUserPreferences {
 	color?: string | null
 	animationSpeed?: number | null
 	edgeScrollSpeed?: number | null
-	isDarkMode?: boolean | null
+	colorScheme?: 'light' | 'dark' | 'system'
 	isSnapMode?: boolean | null
 	isWrapMode?: boolean | null
+	isDynamicSizeMode?: boolean | null
 }
 
 interface UserDataSnapshot {
@@ -40,11 +40,12 @@ const userTypeValidator: T.Validator<TLUserPreferences> = T.object<TLUserPrefere
 	name: T.string.nullable().optional(),
 	locale: T.string.nullable().optional(),
 	color: T.string.nullable().optional(),
-	isDarkMode: T.boolean.nullable().optional(),
+	colorScheme: T.literalEnum('light', 'dark', 'system').optional(),
 	animationSpeed: T.number.nullable().optional(),
 	edgeScrollSpeed: T.number.nullable().optional(),
 	isSnapMode: T.boolean.nullable().optional(),
 	isWrapMode: T.boolean.nullable().optional(),
+	isDynamicSizeMode: T.boolean.nullable().optional(),
 })
 
 const Versions = {
@@ -53,68 +54,44 @@ const Versions = {
 	MakeFieldsNullable: 3,
 	AddEdgeScrollSpeed: 4,
 	AddExcalidrawSelectMode: 5,
+	AddDynamicSizeMode: 6,
+	AllowSystemColorScheme: 7,
 } as const
 
-const userMigrations = defineMigrations({
-	currentVersion: Versions.AddExcalidrawSelectMode,
-	migrators: {
-		[Versions.AddAnimationSpeed]: {
-			up: (user) => {
-				return {
-					...user,
-					animationSpeed: 1,
-				}
-			},
-			down: ({ animationSpeed: _, ...user }) => {
-				return user
-			},
-		},
-		[Versions.AddIsSnapMode]: {
-			up: (user: TLUserPreferences) => {
-				return { ...user, isSnapMode: false }
-			},
-			down: ({ isSnapMode: _, ...user }: TLUserPreferences) => {
-				return user
-			},
-		},
-		[Versions.MakeFieldsNullable]: {
-			up: (user: TLUserPreferences) => {
-				return user
-			},
-			down: (user: TLUserPreferences) => {
-				return {
-					id: user.id,
-					name: user.name ?? defaultUserPreferences.name,
-					locale: user.locale ?? defaultUserPreferences.locale,
-					color: user.color ?? defaultUserPreferences.color,
-					animationSpeed: user.animationSpeed ?? defaultUserPreferences.animationSpeed,
-					isDarkMode: user.isDarkMode ?? defaultUserPreferences.isDarkMode,
-					isSnapMode: user.isSnapMode ?? defaultUserPreferences.isSnapMode,
-					isWrapMode: user.isWrapMode ?? defaultUserPreferences.isWrapMode,
-				}
-			},
-		},
-		[Versions.AddEdgeScrollSpeed]: {
-			up: (user: TLUserPreferences) => {
-				return {
-					...user,
-					edgeScrollSpeed: 1,
-				}
-			},
-			down: ({ edgeScrollSpeed: _, ...user }: TLUserPreferences) => {
-				return user
-			},
-		},
-		[Versions.AddExcalidrawSelectMode]: {
-			up: (user: TLUserPreferences) => {
-				return { ...user, isWrapMode: false }
-			},
-			down: ({ isWrapMode: _, ...user }: TLUserPreferences) => {
-				return user
-			},
-		},
-	},
-})
+const CURRENT_VERSION = Math.max(...Object.values(Versions))
+
+function migrateSnapshot(data: { version: number; user: any }) {
+	if (data.version < Versions.AddAnimationSpeed) {
+		data.user.animationSpeed = 1
+	}
+	if (data.version < Versions.AddIsSnapMode) {
+		data.user.isSnapMode = false
+	}
+	if (data.version < Versions.MakeFieldsNullable) {
+		// noop
+	}
+	if (data.version < Versions.AddEdgeScrollSpeed) {
+		data.user.edgeScrollSpeed = 1
+	}
+	if (data.version < Versions.AddExcalidrawSelectMode) {
+		data.user.isWrapMode = false
+	}
+	if (data.version < Versions.AllowSystemColorScheme) {
+		if (data.user.isDarkMode === true) {
+			data.user.colorScheme = 'dark'
+		} else if (data.user.isDarkMode === false) {
+			data.user.colorScheme = 'light'
+		}
+		delete data.user.isDarkMode
+	}
+
+	if (data.version < Versions.AddDynamicSizeMode) {
+		data.user.isDynamicSizeMode = false
+	}
+
+	// finally
+	data.version = CURRENT_VERSION
+}
 
 /** @internal */
 export const USER_COLORS = [
@@ -137,14 +114,6 @@ function getRandomColor() {
 }
 
 /** @internal */
-export function userPrefersDarkUI() {
-	if (typeof window === 'undefined') {
-		return false
-	}
-	return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? false
-}
-
-/** @internal */
 export function userPrefersReducedMotion() {
 	if (typeof window === 'undefined') {
 		return false
@@ -157,11 +126,11 @@ export const defaultUserPreferences = Object.freeze({
 	name: 'New User',
 	locale: getDefaultTranslationLocale(),
 	color: getRandomColor(),
-	isDarkMode: false,
 	edgeScrollSpeed: 1,
 	animationSpeed: userPrefersReducedMotion() ? 0 : 1,
 	isSnapMode: false,
 	isWrapMode: false,
+	isDynamicSizeMode: false,
 }) satisfies Readonly<Omit<TLUserPreferences, 'id'>>
 
 /** @public */
@@ -171,7 +140,7 @@ export function getFreshUserPreferences(): TLUserPreferences {
 	}
 }
 
-function migrateUserPreferences(userData: unknown) {
+function migrateUserPreferences(userData: unknown): TLUserPreferences {
 	if (userData === null || typeof userData !== 'object') {
 		return getFreshUserPreferences()
 	}
@@ -180,24 +149,15 @@ function migrateUserPreferences(userData: unknown) {
 		return getFreshUserPreferences()
 	}
 
-	const migrationResult = migrate<TLUserPreferences>({
-		value: userData.user,
-		fromVersion: userData.version,
-		toVersion: userMigrations.currentVersion ?? 0,
-		migrations: userMigrations,
-	})
+	const snapshot = structuredClone(userData) as any
 
-	if (migrationResult.type === 'error') {
-		return getFreshUserPreferences()
-	}
+	migrateSnapshot(snapshot)
 
 	try {
-		userTypeValidator.validate(migrationResult.value)
+		return userTypeValidator.validate(snapshot.user)
 	} catch (e) {
 		return getFreshUserPreferences()
 	}
-
-	return migrationResult.value
 }
 
 function loadUserPreferences(): TLUserPreferences {
@@ -212,7 +172,10 @@ const globalUserPreferences = atom<TLUserPreferences | null>('globalUserData', n
 function storeUserPreferences() {
 	setInLocalStorage(
 		USER_DATA_KEY,
-		JSON.stringify({ version: userMigrations.currentVersion, user: globalUserPreferences.get() })
+		JSON.stringify({
+			version: CURRENT_VERSION,
+			user: globalUserPreferences.get(),
+		})
 	)
 }
 
@@ -253,7 +216,7 @@ function broadcastUserPreferencesChange() {
 		origin: getBroadcastOrigin(),
 		data: {
 			user: getUserPreferences(),
-			version: userMigrations.currentVersion,
+			version: CURRENT_VERSION,
 		},
 	} satisfies UserChangeBroadcastMessage)
 }

@@ -27,7 +27,7 @@ jobs:
   deploy:
     name: 'Publish new version of public packages'
     environment: npm deploy
-    timeout-minutes: 15
+    timeout-minutes: 60
     runs-on: ubuntu-latest-16-cores-open
 
     steps:
@@ -69,6 +69,8 @@ jobs:
           GH_TOKEN: ${{ steps.generate_token.outputs.token }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           HUPPY_TOKEN: ${{ secrets.HUPPY_TOKEN }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_ACCESS_KEY_SECRET: ${{ secrets.R2_ACCESS_KEY_SECRET }}
 
   publish_templates:
     name: Publishes code templates to separate repositories

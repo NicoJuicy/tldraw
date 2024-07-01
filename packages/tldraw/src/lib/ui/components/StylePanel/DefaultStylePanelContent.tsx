@@ -7,6 +7,7 @@ import {
 	DefaultFontStyle,
 	DefaultHorizontalAlignStyle,
 	DefaultSizeStyle,
+	DefaultTextAlignStyle,
 	DefaultVerticalAlignStyle,
 	GeoShapeGeoStyle,
 	LineShapeSplineStyle,
@@ -22,6 +23,7 @@ import {
 } from '@tldraw/editor'
 import React from 'react'
 import { STYLES } from '../../../styles'
+import { kickoutOccludedShapes } from '../../../tools/SelectTool/selectHelpers'
 import { useUiEvents } from '../../context/events'
 import { useRelevantStyles } from '../../hooks/useRelevantStyles'
 import { useTranslation } from '../../hooks/useTranslation/useTranslation'
@@ -33,11 +35,11 @@ import { DoubleDropdownPicker } from './DoubleDropdownPicker'
 import { DropdownPicker } from './DropdownPicker'
 
 /** @public */
-export type TLUiStylePanelContentProps = {
+export interface TLUiStylePanelContentProps {
 	styles: ReturnType<typeof useRelevantStyles>
 }
 
-/** @public */
+/** @public @react */
 export function DefaultStylePanelContent({ styles }: TLUiStylePanelContentProps) {
 	const isDarkMode = useIsDarkMode()
 
@@ -77,13 +79,13 @@ function useStyleChangeCallback() {
 
 	return React.useMemo(
 		() =>
-			function handleStyleChange<T>(style: StyleProp<T>, value: T, squashing: boolean) {
+			function handleStyleChange<T>(style: StyleProp<T>, value: T) {
 				editor.batch(() => {
 					if (editor.isIn('select')) {
-						editor.setStyleForSelectedShapes(style, value, { squashing })
+						editor.setStyleForSelectedShapes(style, value)
 					}
-					editor.setStyleForNextShapes(style, value, { squashing })
-					editor.updateInstanceState({ isChangingStyle: true }, { ephemeral: true })
+					editor.setStyleForNextShapes(style, value)
+					editor.updateInstanceState({ isChangingStyle: true })
 				})
 
 				trackEvent('set-style', { source: 'style-panel', id: style.id, value: value as string })
@@ -93,14 +95,20 @@ function useStyleChangeCallback() {
 }
 
 /** @public */
-export function CommonStylePickerSet({
-	styles,
-	theme,
-}: {
+export interface ThemeStylePickerSetProps {
 	styles: ReadonlySharedStyleMap
 	theme: TLDefaultColorTheme
-}) {
+}
+
+/** @public */
+export interface StylePickerSetProps {
+	styles: ReadonlySharedStyleMap
+}
+
+/** @public @react */
+export function CommonStylePickerSet({ styles, theme }: ThemeStylePickerSetProps) {
 	const msg = useTranslation()
+	const editor = useEditor()
 
 	const handleValueChange = useStyleChangeCallback()
 
@@ -163,7 +171,13 @@ export function CommonStylePickerSet({
 							style={DefaultSizeStyle}
 							items={STYLES.size}
 							value={size}
-							onValueChange={handleValueChange}
+							onValueChange={(style, value) => {
+								handleValueChange(style, value)
+								const selectedShapeIds = editor.getSelectedShapeIds()
+								if (selectedShapeIds.length > 0) {
+									kickoutOccludedShapes(editor, selectedShapeIds)
+								}
+							}}
 							theme={theme}
 						/>
 					)}
@@ -173,21 +187,16 @@ export function CommonStylePickerSet({
 	)
 }
 
-/** @public */
-export function TextStylePickerSet({
-	theme,
-	styles,
-}: {
-	theme: TLDefaultColorTheme
-	styles: ReadonlySharedStyleMap
-}) {
+/** @public @react */
+export function TextStylePickerSet({ theme, styles }: ThemeStylePickerSetProps) {
 	const msg = useTranslation()
 	const handleValueChange = useStyleChangeCallback()
 
 	const font = styles.get(DefaultFontStyle)
-	const align = styles.get(DefaultHorizontalAlignStyle)
-	const verticalAlign = styles.get(DefaultVerticalAlignStyle)
-	if (font === undefined && align === undefined) {
+	const textAlign = styles.get(DefaultTextAlignStyle)
+	const labelAlign = styles.get(DefaultHorizontalAlignStyle)
+	const verticalLabelAlign = styles.get(DefaultVerticalAlignStyle)
+	if (font === undefined && labelAlign === undefined) {
 		return null
 	}
 
@@ -205,26 +214,50 @@ export function TextStylePickerSet({
 				/>
 			)}
 
-			{align === undefined ? null : (
+			{textAlign === undefined ? null : (
+				<div className="tlui-style-panel__row">
+					<TldrawUiButtonPicker
+						title={msg('style-panel.align')}
+						uiType="align"
+						style={DefaultTextAlignStyle}
+						items={STYLES.textAlign}
+						value={textAlign}
+						onValueChange={handleValueChange}
+						theme={theme}
+					/>
+					<div className="tlui-style-panel__row__extra-button">
+						<TldrawUiButton
+							type="icon"
+							title={msg('style-panel.vertical-align')}
+							data-testid="vertical-align"
+							disabled
+						>
+							<TldrawUiButtonIcon icon="vertical-align-middle" />
+						</TldrawUiButton>
+					</div>
+				</div>
+			)}
+
+			{labelAlign === undefined ? null : (
 				<div className="tlui-style-panel__row">
 					<TldrawUiButtonPicker
 						title={msg('style-panel.align')}
 						uiType="align"
 						style={DefaultHorizontalAlignStyle}
 						items={STYLES.horizontalAlign}
-						value={align}
+						value={labelAlign}
 						onValueChange={handleValueChange}
 						theme={theme}
 					/>
 					<div className="tlui-style-panel__row__extra-button">
-						{verticalAlign === undefined ? (
+						{verticalLabelAlign === undefined ? (
 							<TldrawUiButton
 								type="icon"
 								title={msg('style-panel.vertical-align')}
 								data-testid="vertical-align"
 								disabled
 							>
-								<TldrawUiButtonIcon icon="vertical-align-center" />
+								<TldrawUiButtonIcon icon="vertical-align-middle" />
 							</TldrawUiButton>
 						) : (
 							<DropdownPicker
@@ -233,7 +266,7 @@ export function TextStylePickerSet({
 								uiType="verticalAlign"
 								style={DefaultVerticalAlignStyle}
 								items={STYLES.verticalAlign}
-								value={verticalAlign}
+								value={verticalLabelAlign}
 								onValueChange={handleValueChange}
 							/>
 						)}
@@ -243,8 +276,8 @@ export function TextStylePickerSet({
 		</div>
 	)
 }
-/** @public */
-export function GeoStylePickerSet({ styles }: { styles: ReadonlySharedStyleMap }) {
+/** @public @react */
+export function GeoStylePickerSet({ styles }: StylePickerSetProps) {
 	const handleValueChange = useStyleChangeCallback()
 
 	const geo = styles.get(GeoShapeGeoStyle)
@@ -265,8 +298,8 @@ export function GeoStylePickerSet({ styles }: { styles: ReadonlySharedStyleMap }
 		/>
 	)
 }
-/** @public */
-export function SplineStylePickerSet({ styles }: { styles: ReadonlySharedStyleMap }) {
+/** @public @react */
+export function SplineStylePickerSet({ styles }: StylePickerSetProps) {
 	const handleValueChange = useStyleChangeCallback()
 
 	const spline = styles.get(LineShapeSplineStyle)
@@ -288,8 +321,8 @@ export function SplineStylePickerSet({ styles }: { styles: ReadonlySharedStyleMa
 	)
 }
 
-/** @public */
-export function ArrowheadStylePickerSet({ styles }: { styles: ReadonlySharedStyleMap }) {
+/** @public @react */
+export function ArrowheadStylePickerSet({ styles }: StylePickerSetProps) {
 	const handleValueChange = useStyleChangeCallback()
 
 	const arrowheadEnd = styles.get(ArrowShapeArrowheadEndStyle)
@@ -317,7 +350,7 @@ export function ArrowheadStylePickerSet({ styles }: { styles: ReadonlySharedStyl
 }
 
 const tldrawSupportedOpacities = [0.1, 0.25, 0.5, 0.75, 1] as const
-/** @public */
+/** @public @react */
 export function OpacitySlider() {
 	const editor = useEditor()
 	const opacity = useValue('opacity', () => editor.getSharedOpacity(), [editor])
@@ -325,14 +358,14 @@ export function OpacitySlider() {
 	const msg = useTranslation()
 
 	const handleOpacityValueChange = React.useCallback(
-		(value: number, squashing: boolean) => {
+		(value: number) => {
 			const item = tldrawSupportedOpacities[value]
 			editor.batch(() => {
 				if (editor.isIn('select')) {
-					editor.setOpacityForSelectedShapes(item, { squashing })
+					editor.setOpacityForSelectedShapes(item)
 				}
-				editor.setOpacityForNextShapes(item, { squashing })
-				editor.updateInstanceState({ isChangingStyle: true }, { ephemeral: true })
+				editor.setOpacityForNextShapes(item)
+				editor.updateInstanceState({ isChangingStyle: true })
 			})
 
 			trackEvent('set-style', { source: 'style-panel', id: 'opacity', value })

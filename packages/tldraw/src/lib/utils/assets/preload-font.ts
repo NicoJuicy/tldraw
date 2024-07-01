@@ -1,5 +1,5 @@
 /** @public */
-export type TLTypeFace = {
+export interface TLTypeFace {
 	url: string
 	display?: any // FontDisplay
 	featureSettings?: string
@@ -32,6 +32,7 @@ export async function preloadFont(id: string, font: TLTypeFace) {
 		featureSettings,
 		stretch,
 		unicodeRange,
+		// @ts-expect-error why is this here
 		variant,
 	}
 

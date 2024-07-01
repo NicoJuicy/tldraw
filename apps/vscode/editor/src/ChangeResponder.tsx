@@ -48,7 +48,7 @@ export const ChangeResponder = () => {
 			vscode.postMessage({
 				type: 'vscode:editor-updated',
 				data: {
-					fileContents: await serializeTldrawJson(editor.store),
+					fileContents: await serializeTldrawJson(editor),
 				},
 			})
 		}, 250)
@@ -57,11 +57,11 @@ export const ChangeResponder = () => {
 			type: 'vscode:editor-loaded',
 		})
 
-		editor.on('change-history', handleChange)
+		const dispose = editor.store.listen(handleChange, { scope: 'document' })
 
 		return () => {
 			handleChange()
-			editor.off('change-history', handleChange)
+			dispose()
 		}
 	}, [editor])
 

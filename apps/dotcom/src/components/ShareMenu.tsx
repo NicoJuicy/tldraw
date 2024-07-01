@@ -1,13 +1,20 @@
 import * as Popover from '@radix-ui/react-popover'
+import {
+	GetReadonlySlugResponseBody,
+	ROOM_OPEN_MODE,
+	ROOM_PREFIX,
+	RoomOpenModeToPath,
+} from '@tldraw/dotcom-shared'
 import React, { useEffect, useState } from 'react'
 import {
 	TldrawUiMenuContextProvider,
 	TldrawUiMenuGroup,
 	TldrawUiMenuItem,
-	lns,
+	fetch,
 	unwrapLabel,
 	useActions,
 	useContainer,
+	useToasts,
 	useTranslation,
 } from 'tldraw'
 import { useShareMenuIsOpen } from '../hooks/useShareMenuOpen'
@@ -15,30 +22,92 @@ import { createQRCodeImageDataString } from '../utils/qrcode'
 import { SHARE_PROJECT_ACTION, SHARE_SNAPSHOT_ACTION } from '../utils/sharing'
 import { ShareButton } from './ShareButton'
 
-type ShareState = {
-	state: 'offline' | 'shared' | 'readonly'
+const SHARE_CURRENT_STATE = {
+	OFFLINE: 'offline',
+	SHARED_READ_WRITE: 'shared-read-write',
+	SHARED_READ_ONLY: 'shared-read-only',
+} as const
+type ShareCurrentState = (typeof SHARE_CURRENT_STATE)[keyof typeof SHARE_CURRENT_STATE]
+
+interface ShareState {
+	state: ShareCurrentState
 	qrCodeDataUrl: string
 	url: string
-	readonlyUrl: string
+	readonlyUrl?: string
 	readonlyQrCodeDataUrl: string
 }
 
-function getFreshShareState(): ShareState {
-	const isShared = window.location.href.includes('/r/')
-	const isReadOnly = window.location.href.includes('/v/')
+function isSharedReadonlyUrl(pathname: string) {
+	return (
+		pathname.startsWith(`/${RoomOpenModeToPath[ROOM_OPEN_MODE.READ_ONLY]}/`) ||
+		pathname.startsWith(`/${RoomOpenModeToPath[ROOM_OPEN_MODE.READ_ONLY_LEGACY]}/`)
+	)
+}
+
+function isSharedReadWriteUrl(pathname: string) {
+	return pathname.startsWith(`/${ROOM_PREFIX}/`)
+}
+
+function getFreshShareState(previousReadonlyUrl?: string): ShareState {
+	const isSharedReadWrite = isSharedReadWriteUrl(window.location.pathname)
+	const isSharedReadOnly = isSharedReadonlyUrl(window.location.pathname)
+
+	let readonlyUrl
+	if (isSharedReadOnly) {
+		readonlyUrl = window.location.href
+	} else if (previousReadonlyUrl) {
+		// Pull out the room prefix and the readonly slug from the existing readonly url
+		const segments = window.location.pathname.split('/')
+		const roSegments = new URL(previousReadonlyUrl).pathname.split('/')
+		segments[1] = roSegments[1]
+		segments[2] = roSegments[2]
+		const newPathname = segments.join('/')
+		readonlyUrl = `${window.location.origin}${newPathname}${window.location.search}`
+	}
 
 	return {
-		state: isShared ? 'shared' : isReadOnly ? 'readonly' : 'offline',
+		state: isSharedReadWrite
+			? SHARE_CURRENT_STATE.SHARED_READ_WRITE
+			: isSharedReadOnly
+				? SHARE_CURRENT_STATE.SHARED_READ_ONLY
+				: SHARE_CURRENT_STATE.OFFLINE,
 		url: window.location.href,
-		readonlyUrl: window.location.href.includes('/r/')
-			? getShareUrl(window.location.href, true)
-			: window.location.href,
+		readonlyUrl,
 		qrCodeDataUrl: '',
 		readonlyQrCodeDataUrl: '',
 	}
 }
 
-/** @public */
+export async function getShareUrl(url: string, readonly: boolean) {
+	if (!readonly) {
+		return url
+	}
+
+	return await getReadonlyUrl()
+}
+
+async function getReadonlyUrl() {
+	const pathname = window.location.pathname
+	const isReadOnly = isSharedReadonlyUrl(pathname)
+	if (isReadOnly) return window.location.href
+
+	const segments = pathname.split('/')
+
+	const roomId = segments[2]
+	const result = await fetch(`/api/readonly-slug/${roomId}`)
+	if (!result.ok) return
+
+	const data = (await result.json()) as GetReadonlySlugResponseBody
+	if (!data.slug) return
+
+	segments[1] =
+		RoomOpenModeToPath[data.isLegacy ? ROOM_OPEN_MODE.READ_ONLY_LEGACY : ROOM_OPEN_MODE.READ_ONLY]
+	segments[2] = data.slug
+	const newPathname = segments.join('/')
+
+	return `${window.location.origin}${newPathname}${window.location.search}`
+}
+
 export const ShareMenu = React.memo(function ShareMenu() {
 	const msg = useTranslation()
 	const container = useContainer()
@@ -50,25 +119,22 @@ export const ShareMenu = React.memo(function ShareMenu() {
 
 	const [isUploading, setIsUploading] = useState(false)
 	const [isUploadingSnapshot, setIsUploadingSnapshot] = useState(false)
-	const [isReadOnlyLink, setIsReadOnlyLink] = useState(shareState.state === 'readonly')
+	const isReadOnlyLink = shareState.state === SHARE_CURRENT_STATE.SHARED_READ_ONLY
 	const currentShareLinkUrl = isReadOnlyLink ? shareState.readonlyUrl : shareState.url
 	const currentQrCodeUrl = isReadOnlyLink
 		? shareState.readonlyQrCodeDataUrl
 		: shareState.qrCodeDataUrl
-	const [didCopy, setDidCopy] = useState(false)
-	const [didCopySnapshotLink, setDidCopySnapshotLink] = useState(false)
+	const toasts = useToasts()
 
 	useEffect(() => {
-		if (shareState.state === 'offline') {
+		if (shareState.state === SHARE_CURRENT_STATE.OFFLINE) {
 			return
 		}
 
 		let cancelled = false
 
-		const shareUrl = getShareUrl(window.location.href, false)
-		const readonlyShareUrl = getShareUrl(window.location.href, true)
-
-		if (!shareState.qrCodeDataUrl && shareState.state === 'shared') {
+		const shareUrl = window.location.href
+		if (!shareState.qrCodeDataUrl && shareState.state === SHARE_CURRENT_STATE.SHARED_READ_WRITE) {
 			// Fetch the QR code data URL
 			createQRCodeImageDataString(shareUrl).then((dataUrl) => {
 				if (!cancelled) {
@@ -77,11 +143,21 @@ export const ShareMenu = React.memo(function ShareMenu() {
 			})
 		}
 
-		if (!shareState.readonlyQrCodeDataUrl) {
-			// fetch the readonly QR code data URL
-			createQRCodeImageDataString(readonlyShareUrl).then((dataUrl) => {
+		if (!shareState.readonlyUrl) {
+			getReadonlyUrl().then((readonlyUrl) => {
+				if (readonlyUrl) {
+					// fetch the readonly QR code data URL
+					createQRCodeImageDataString(readonlyUrl).then((dataUrl) => {
+						if (!cancelled) {
+							setShareState((s) => ({ ...s, readonlyUrl, readonlyQrCodeDataUrl: dataUrl }))
+						}
+					})
+				}
+			})
+		} else if (!shareState.readonlyQrCodeDataUrl) {
+			createQRCodeImageDataString(shareState.readonlyUrl).then((dataUrl) => {
 				if (!cancelled) {
-					setShareState((s) => ({ ...s, readonlyShareUrl, readonlyQrCodeDataUrl: dataUrl }))
+					setShareState((s) => ({ ...s, readonlyQrCodeDataUrl: dataUrl }))
 				}
 			})
 		}
@@ -89,7 +165,7 @@ export const ShareMenu = React.memo(function ShareMenu() {
 		const interval = setInterval(() => {
 			const url = window.location.href
 			if (shareState.url === url) return
-			setShareState(getFreshShareState())
+			setShareState(getFreshShareState(shareState.readonlyUrl))
 		}, 300)
 
 		return () => {
@@ -115,7 +191,8 @@ export const ShareMenu = React.memo(function ShareMenu() {
 					alignOffset={4}
 				>
 					<TldrawUiMenuContextProvider type="panel" sourceId="share-menu">
-						{shareState.state === 'shared' || shareState.state === 'readonly' ? (
+						{shareState.state === SHARE_CURRENT_STATE.SHARED_READ_WRITE ||
+						shareState.state === SHARE_CURRENT_STATE.SHARED_READ_ONLY ? (
 							<>
 								<button
 									className="tlui-share-zone__qr-code"
@@ -124,54 +201,59 @@ export const ShareMenu = React.memo(function ShareMenu() {
 										isReadOnlyLink ? 'share-menu.copy-readonly-link' : 'share-menu.copy-link'
 									)}
 									onClick={() => {
-										setDidCopy(true)
-										setTimeout(() => setDidCopy(false), 1000)
+										if (!currentShareLinkUrl) return
 										navigator.clipboard.writeText(currentShareLinkUrl)
+										toasts.addToast({
+											title: msg('share-menu.copied'),
+											severity: 'success',
+										})
 									}}
 								/>
+
 								<TldrawUiMenuGroup id="copy">
-									<TldrawUiMenuItem
-										id="copy-to-clipboard"
-										readonlyOk
-										icon={didCopy ? 'clipboard-copied' : 'clipboard-copy'}
-										label={
-											isReadOnlyLink ? 'share-menu.copy-readonly-link' : 'share-menu.copy-link'
-										}
-										onSelect={() => {
-											setDidCopy(true)
-											setTimeout(() => setDidCopy(false), 750)
-											navigator.clipboard.writeText(currentShareLinkUrl)
-										}}
-									/>
-									{shareState.state === 'shared' && (
+									{shareState.state === SHARE_CURRENT_STATE.SHARED_READ_WRITE && (
 										<TldrawUiMenuItem
-											id="toggle-read-only"
-											label="share-menu.readonly-link"
-											icon={isReadOnlyLink ? 'check' : 'checkbox-empty'}
-											onSelect={async () => {
-												setIsReadOnlyLink(() => !isReadOnlyLink)
+											id="copy-to-clipboard"
+											readonlyOk={false}
+											label="share-menu.copy-link"
+											icon="clipboard-copy"
+											onSelect={() => {
+												if (!shareState.url) return
+												navigator.clipboard.writeText(shareState.url)
+												toasts.addToast({
+													title: msg('share-menu.copied'),
+													severity: 'success',
+												})
 											}}
 										/>
 									)}
+									<TldrawUiMenuItem
+										id="copy-readonly-to-clipboard"
+										readonlyOk
+										label="share-menu.copy-readonly-link"
+										icon="clipboard-copy"
+										onSelect={() => {
+											if (!shareState.readonlyUrl) return
+											navigator.clipboard.writeText(shareState.readonlyUrl)
+											toasts.addToast({
+												title: msg('share-menu.copied'),
+												severity: 'success',
+											})
+										}}
+									/>
 									<p className="tlui-menu__group tlui-share-zone__details">
-										{msg(
-											isReadOnlyLink
-												? 'share-menu.copy-readonly-link-note'
-												: 'share-menu.copy-link-note'
-										)}
+										{msg('share-menu.copy-readonly-link-note')}
 									</p>
 								</TldrawUiMenuGroup>
 
 								<TldrawUiMenuGroup id="snapshot">
 									<TldrawUiMenuItem
 										{...shareSnapshot}
-										icon={didCopySnapshotLink ? 'clipboard-copied' : 'clipboard-copy'}
+										icon="clipboard-copy"
 										onSelect={async () => {
 											setIsUploadingSnapshot(true)
 											await shareSnapshot.onSelect('share-menu')
 											setIsUploadingSnapshot(false)
-											setDidCopySnapshotLink(true)
-											setTimeout(() => setDidCopySnapshotLink(false), 1000)
 										}}
 										spinner={isUploadingSnapshot}
 									/>
@@ -185,8 +267,10 @@ export const ShareMenu = React.memo(function ShareMenu() {
 								<TldrawUiMenuGroup id="share">
 									<TldrawUiMenuItem
 										id="share-project"
+										readonlyOk
 										label="share-menu.share-project"
 										icon="share-1"
+										disabled={isUploading}
 										onSelect={async () => {
 											if (isUploading) return
 											setIsUploading(true)
@@ -197,7 +281,7 @@ export const ShareMenu = React.memo(function ShareMenu() {
 									/>
 									<p className="tlui-menu__group tlui-share-zone__details">
 										{msg(
-											shareState.state === 'offline'
+											shareState.state === SHARE_CURRENT_STATE.OFFLINE
 												? 'share-menu.offline-note'
 												: isReadOnlyLink
 													? 'share-menu.copy-readonly-link-note'
@@ -208,14 +292,13 @@ export const ShareMenu = React.memo(function ShareMenu() {
 								<TldrawUiMenuGroup id="copy-snapshot-link">
 									<TldrawUiMenuItem
 										id="copy-snapshot-link"
-										icon={didCopySnapshotLink ? 'clipboard-copied' : 'clipboard-copy'}
+										readonlyOk
+										icon="clipboard-copy"
 										label={unwrapLabel(shareSnapshot.label)}
 										onSelect={async () => {
 											setIsUploadingSnapshot(true)
 											await shareSnapshot.onSelect('share-menu')
 											setIsUploadingSnapshot(false)
-											setDidCopySnapshotLink(true)
-											setTimeout(() => setDidCopySnapshotLink(false), 1000)
 										}}
 										spinner={isUploadingSnapshot}
 									/>
@@ -231,23 +314,3 @@ export const ShareMenu = React.memo(function ShareMenu() {
 		</Popover.Root>
 	)
 })
-
-export function getShareUrl(url: string, readonly: boolean) {
-	if (!readonly) {
-		return url
-	}
-
-	const segs = url.split('/')
-
-	// Change the r for a v
-	segs[segs.length - 2] = 'v'
-
-	// A url might be something like https://www.tldraw.com/r/123?pageId=myPageId
-	// we want it instead to be https://www.tldraw.com/v/312?pageId=myPageId, ie
-	// the scrambled room id but not scrambled query params
-	const [roomId, params] = segs[segs.length - 1].split('?')
-	segs[segs.length - 1] = lns(roomId)
-	if (params) segs[segs.length - 1] += '?' + params
-
-	return segs.join('/')
-}

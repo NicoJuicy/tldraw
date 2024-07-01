@@ -2,7 +2,11 @@ import { SerializedSchema, UnknownRecord } from '@tldraw/store'
 import { NetworkDiff, ObjectDiff, RecordOpType } from './diff'
 
 /** @public */
-export const TLSYNC_PROTOCOL_VERSION = 5
+const TLSYNC_PROTOCOL_VERSION = 6
+
+export function getTlsyncProtocolVersion() {
+	return TLSYNC_PROTOCOL_VERSION
+}
 
 /** @public */
 export const TLIncompatibilityReason = {
@@ -10,6 +14,7 @@ export const TLIncompatibilityReason = {
 	ServerTooOld: 'serverTooOld',
 	InvalidRecord: 'invalidRecord',
 	InvalidOperation: 'invalidOperation',
+	RoomNotFound: 'roomNotFound',
 } as const
 
 /** @public */
@@ -56,20 +61,15 @@ export type TLSocketServerSentDataEvent<R extends UnknownRecord> =
 	  }
 
 /** @public */
-export type TLPushRequest<R extends UnknownRecord> =
-	| {
-			type: 'push'
-			clientClock: number
-			presence: [typeof RecordOpType.Patch, ObjectDiff] | [typeof RecordOpType.Put, R]
-	  }
-	| {
-			type: 'push'
-			clientClock: number
-			diff: NetworkDiff<R>
-	  }
+export interface TLPushRequest<R extends UnknownRecord> {
+	type: 'push'
+	clientClock: number
+	diff?: NetworkDiff<R>
+	presence?: [typeof RecordOpType.Patch, ObjectDiff] | [typeof RecordOpType.Put, R]
+}
 
 /** @public */
-export type TLConnectRequest = {
+export interface TLConnectRequest {
 	type: 'connect'
 	connectRequestId: string
 	lastServerClock: number
@@ -78,7 +78,7 @@ export type TLConnectRequest = {
 }
 
 /** @public */
-export type TLPingRequest = {
+export interface TLPingRequest {
 	type: 'ping'
 }
 

@@ -12,8 +12,8 @@ export interface TLUiInputProps {
 	label?: TLUiTranslationKey | Exclude<string, TLUiTranslationKey>
 	icon?: TLUiIconType | Exclude<string, TLUiIconType>
 	iconLeft?: TLUiIconType | Exclude<string, TLUiIconType>
-	autofocus?: boolean
-	autoselect?: boolean
+	autoFocus?: boolean
+	autoSelect?: boolean
 	children?: React.ReactNode
 	defaultValue?: string
 	placeholder?: string
@@ -21,6 +21,7 @@ export interface TLUiInputProps {
 	onValueChange?: (value: string) => void
 	onCancel?: (value: string) => void
 	onBlur?: (value: string) => void
+	onFocus?: () => void
 	className?: string
 	/**
 	 * Usually on iOS when you focus an input, the browser will adjust the viewport to bring the input
@@ -34,7 +35,7 @@ export interface TLUiInputProps {
 	value?: string
 }
 
-/** @public */
+/** @public @react */
 export const TldrawUiInput = React.forwardRef<HTMLInputElement, TLUiInputProps>(
 	function TldrawUiInput(
 		{
@@ -42,13 +43,14 @@ export const TldrawUiInput = React.forwardRef<HTMLInputElement, TLUiInputProps>(
 			label,
 			icon,
 			iconLeft,
-			autoselect = false,
-			autofocus = false,
+			autoSelect = false,
+			autoFocus = false,
 			defaultValue,
 			placeholder,
 			onComplete,
 			onValueChange,
 			onCancel,
+			onFocus,
 			onBlur,
 			shouldManuallyMaintainScrollPositionWhenFocused = false,
 			children,
@@ -72,13 +74,14 @@ export const TldrawUiInput = React.forwardRef<HTMLInputElement, TLUiInputProps>(
 				setIsFocused(true)
 				const elm = e.currentTarget as HTMLInputElement
 				rCurrentValue.current = elm.value
-				requestAnimationFrame(() => {
-					if (autoselect) {
+				editor.timers.requestAnimationFrame(() => {
+					if (autoSelect) {
 						elm.select()
 					}
 				})
+				onFocus?.()
 			},
-			[autoselect]
+			[autoSelect, onFocus, editor.timers]
 		)
 
 		const handleChange = React.useCallback(
@@ -131,7 +134,7 @@ export const TldrawUiInput = React.forwardRef<HTMLInputElement, TLUiInputProps>(
 				visualViewport.addEventListener('resize', onViewportChange)
 				visualViewport.addEventListener('scroll', onViewportChange)
 
-				requestAnimationFrame(() => {
+				editor.timers.requestAnimationFrame(() => {
 					rInputRef.current?.scrollIntoView({ block: 'center' })
 				})
 
@@ -156,7 +159,7 @@ export const TldrawUiInput = React.forwardRef<HTMLInputElement, TLUiInputProps>(
 					onChange={handleChange}
 					onFocus={handleFocus}
 					onBlur={handleBlur}
-					autoFocus={autofocus}
+					autoFocus={autoFocus}
 					placeholder={placeholder}
 					value={value}
 				/>

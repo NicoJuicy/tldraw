@@ -1,10 +1,16 @@
+import {
+	CreateRoomRequestBody,
+	CreateSnapshotRequestBody,
+	CreateSnapshotResponseBody,
+	ROOM_PREFIX,
+	SNAPSHOT_PREFIX,
+	Snapshot,
+} from '@tldraw/dotcom-shared'
 import { useMemo } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
 	AssetRecordType,
 	Editor,
-	SerializedSchema,
-	SerializedStore,
 	TLAsset,
 	TLAssetId,
 	TLRecord,
@@ -14,12 +20,14 @@ import {
 	TLUiOverrides,
 	TLUiToastsContextType,
 	TLUiTranslationKey,
+	fetch,
 	isShape,
 } from 'tldraw'
 import { useMultiplayerAssets } from '../hooks/useMultiplayerAssets'
 import { getViewportUrlQuery } from '../hooks/useUrlState'
 import { cloneAssetForShare } from './cloneAssetForShare'
 import { ASSET_UPLOADER_URL } from './config'
+import { getParentOrigin, isInIframe } from './iFrame'
 import { shouldLeaveSharedProject } from './shouldLeaveSharedProject'
 import { trackAnalyticsEvent } from './trackAnalyticsEvent'
 import { UI_OVERRIDE_TODO_EVENT, useHandleUiEvents } from './useHandleUiEvent'
@@ -32,27 +40,6 @@ export const FORK_PROJECT_ACTION = 'fork-project' as const
 const CREATE_SNAPSHOT_ENDPOINT = `/api/snapshots`
 const SNAPSHOT_UPLOAD_URL = `/api/new-room`
 
-type SnapshotRequestBody = {
-	schema: SerializedSchema
-	snapshot: SerializedStore<TLRecord>
-}
-
-type CreateSnapshotRequestBody = {
-	schema: SerializedSchema
-	snapshot: SerializedStore<TLRecord>
-	parent_slug?: string | string[] | undefined
-}
-
-type CreateSnapshotResponseBody =
-	| {
-			error: false
-			roomId: string
-	  }
-	| {
-			error: true
-			message: string
-	  }
-
 async function getSnapshotLink(
 	source: string,
 	editor: Editor,
@@ -60,10 +47,11 @@ async function getSnapshotLink(
 	addToast: TLUiToastsContextType['addToast'],
 	msg: (id: TLUiTranslationKey) => string,
 	uploadFileToAsset: (file: File) => Promise<TLAsset>,
-	parentSlug: string | undefined
+	parentSlug: string | undefined,
+	persistenceKey: string
 ) {
 	handleUiEvent('share-snapshot' as UI_OVERRIDE_TODO_EVENT, { source } as UI_OVERRIDE_TODO_EVENT)
-	const data = await getRoomData(editor, addToast, msg, uploadFileToAsset)
+	const data = await getRoomData(editor, addToast, msg, uploadFileToAsset, persistenceKey)
 	if (!data) return ''
 
 	const res = await fetch(CREATE_SNAPSHOT_ENDPOINT, {
@@ -84,21 +72,41 @@ async function getSnapshotLink(
 		return ''
 	}
 	const paramsToUse = getViewportUrlQuery(editor)
-	const params = paramsToUse ? `?${new URLSearchParams(paramsToUse).toString()}` : ''
-	return new Blob([`${window.location.origin}/s/${response.roomId}${params}`], {
+	// React router has an issue with the search params being encoded, which can cause multiple navigations
+	// and can also make us believe that the URL has changed when it hasn't.
+	// https://github.com/tldraw/tldraw/pull/3663#discussion_r1584946080
+	const params = paramsToUse
+		? decodeURIComponent(`?${new URLSearchParams(paramsToUse).toString()}`)
+		: ''
+	return new Blob([`${window.location.origin}/${SNAPSHOT_PREFIX}/${response.roomId}${params}`], {
 		type: 'text/plain',
 	})
 }
 
-export function useSharing(): TLUiOverrides {
+export async function getNewRoomResponse(snapshot: Snapshot) {
+	return await fetch(SNAPSHOT_UPLOAD_URL, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			origin: getParentOrigin(),
+			snapshot,
+		} satisfies CreateRoomRequestBody),
+	})
+}
+
+export function useSharing(persistenceKey?: string): TLUiOverrides {
 	const navigate = useNavigate()
-	const id = useSearchParams()[0].get('id') ?? undefined
+	const params = useParams()
+	const roomId = params.roomId
 	const uploadFileToAsset = useMultiplayerAssets(ASSET_UPLOADER_URL)
 	const handleUiEvent = useHandleUiEvents()
+	const runningInIFrame = isInIframe()
 
 	return useMemo(
 		(): TLUiOverrides => ({
-			actions(editor, actions, { addToast, msg, addDialog }) {
+			actions(editor, actions, { addToast, clearToasts, msg, addDialog }) {
 				actions[LEAVE_SHARED_PROJECT_ACTION] = {
 					id: LEAVE_SHARED_PROJECT_ACTION,
 					label: 'action.leave-shared-project',
@@ -118,21 +126,26 @@ export function useSharing(): TLUiOverrides {
 					readonlyOk: true,
 					onSelect: async (source) => {
 						try {
-							handleUiEvent('share-project', { source })
-							const data = await getRoomData(editor, addToast, msg, uploadFileToAsset)
-							if (!data) return
-
-							const res = await fetch(SNAPSHOT_UPLOAD_URL, {
-								method: 'POST',
-								headers: {
-									'Content-Type': 'application/json',
-								},
-								body: JSON.stringify({
-									schema: editor.store.schema.serialize(),
-									snapshot: data,
-								} satisfies SnapshotRequestBody),
+							addToast({
+								title: msg('share-menu.creating-project'),
+								severity: 'info',
+								keepOpen: true,
 							})
 
+							handleUiEvent('share-project', { source })
+							const data = await getRoomData(
+								editor,
+								addToast,
+								msg,
+								uploadFileToAsset,
+								persistenceKey || ''
+							)
+							if (!data) return
+
+							const res = await getNewRoomResponse({
+								schema: editor.store.schema.serialize(),
+								snapshot: data,
+							})
 							const response = (await res.json()) as { error: boolean; slug?: string }
 							if (!res.ok || response.error) {
 								console.error(await res.text())
@@ -140,8 +153,20 @@ export function useSharing(): TLUiOverrides {
 							}
 
 							const query = getViewportUrlQuery(editor)
+							const origin = window.location.origin
 
-							navigate(`/r/${response.slug}?${new URLSearchParams(query ?? {}).toString()}`)
+							// React router has an issue with the search params being encoded, which can cause multiple navigations
+							// and can also make us believe that the URL has changed when it hasn't.
+							// https://github.com/tldraw/tldraw/pull/3663#discussion_r1584946080
+							const pathname = decodeURIComponent(
+								`/${ROOM_PREFIX}/${response.slug}?${new URLSearchParams(query ?? {}).toString()}`
+							)
+							clearToasts()
+							if (runningInIFrame) {
+								window.open(`${origin}${pathname}`)
+							} else {
+								navigate(pathname)
+							}
 						} catch (error) {
 							console.error(error)
 							addToast({
@@ -164,7 +189,8 @@ export function useSharing(): TLUiOverrides {
 							addToast,
 							msg,
 							uploadFileToAsset,
-							id
+							roomId,
+							persistenceKey || ''
 						)
 						if (navigator?.clipboard?.write) {
 							await navigator.clipboard.write([
@@ -177,17 +203,21 @@ export function useSharing(): TLUiOverrides {
 							if (link === '') return
 							navigator.clipboard.writeText(await link.text())
 						}
+						addToast({
+							title: msg('share-menu.copied'),
+							severity: 'success',
+						})
 					},
 				}
 				actions[FORK_PROJECT_ACTION] = {
 					...actions[SHARE_PROJECT_ACTION],
 					id: FORK_PROJECT_ACTION,
-					label: 'action.fork-project',
+					label: runningInIFrame ? 'action.fork-project-on-tldraw' : 'action.fork-project',
 				}
 				return actions
 			},
 		}),
-		[handleUiEvent, navigate, uploadFileToAsset, id]
+		[handleUiEvent, navigate, uploadFileToAsset, roomId, runningInIFrame, persistenceKey]
 	)
 }
 
@@ -195,7 +225,8 @@ async function getRoomData(
 	editor: Editor,
 	addToast: TLUiToastsContextType['addToast'],
 	msg: (id: TLUiTranslationKey) => string,
-	uploadFileToAsset: (file: File) => Promise<TLAsset>
+	uploadFileToAsset: (file: File) => Promise<TLAsset>,
+	persistenceKey: string
 ) {
 	const rawData = editor.store.serialize()
 
@@ -231,7 +262,7 @@ async function getRoomData(
 			// processed it
 			if (!asset) continue
 
-			data[asset.id] = await cloneAssetForShare(asset, uploadFileToAsset)
+			data[asset.id] = await cloneAssetForShare(asset, uploadFileToAsset, persistenceKey)
 			// remove the asset after processing so we don't clone it multiple times
 			assets.delete(asset.id)
 		}

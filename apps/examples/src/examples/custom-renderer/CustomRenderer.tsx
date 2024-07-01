@@ -19,10 +19,9 @@ export function CustomRenderer() {
 
 		const ctx = canvas.getContext('2d')!
 
-		let isCancelled = false
+		let raf = -1
 
 		function render() {
-			if (isCancelled) return
 			if (!canvas) return
 
 			ctx.resetTransform()
@@ -36,7 +35,8 @@ export function CustomRenderer() {
 			const theme = getDefaultColorTheme({ isDarkMode: editor.user.getIsDarkMode() })
 			const currentPageId = editor.getCurrentPageId()
 
-			for (const { shape, maskedPageBounds, opacity } of renderingShapes) {
+			for (const { shape, opacity } of renderingShapes) {
+				const maskedPageBounds = editor.getShapeMaskedPageBounds(shape)
 				if (!maskedPageBounds) continue
 				ctx.save()
 
@@ -93,13 +93,13 @@ export function CustomRenderer() {
 				ctx.restore()
 			}
 
-			requestAnimationFrame(render)
+			raf = requestAnimationFrame(render)
 		}
 
 		render()
 
 		return () => {
-			isCancelled = true
+			cancelAnimationFrame(raf)
 		}
 	}, [editor])
 

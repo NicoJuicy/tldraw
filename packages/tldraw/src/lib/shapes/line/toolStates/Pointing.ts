@@ -53,8 +53,8 @@ export class Pointing extends StateNode {
 			const points = structuredClone(this.shape.props.points)
 
 			if (
-				Vec.Dist(endHandle, prevEndHandle) < MINIMUM_DISTANCE_BETWEEN_SHIFT_CLICKED_HANDLES ||
-				Vec.Dist(nextPoint, endHandle) < MINIMUM_DISTANCE_BETWEEN_SHIFT_CLICKED_HANDLES
+				Vec.DistMin(endHandle, prevEndHandle, MINIMUM_DISTANCE_BETWEEN_SHIFT_CLICKED_HANDLES) ||
+				Vec.DistMin(nextPoint, endHandle, MINIMUM_DISTANCE_BETWEEN_SHIFT_CLICKED_HANDLES)
 			) {
 				// Don't add a new point if the distance between the last two points is too small
 				points[endHandle.id] = {
@@ -95,6 +95,9 @@ export class Pointing extends StateNode {
 					type: 'line',
 					x: currentPagePoint.x,
 					y: currentPagePoint.y,
+					props: {
+						scale: this.editor.user.getIsDynamicResizeMode() ? 1 / this.editor.getZoomLevel() : 1,
+					},
 				},
 			])
 

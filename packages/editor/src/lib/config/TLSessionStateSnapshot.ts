@@ -1,27 +1,21 @@
-import { Signal, computed, transact } from '@tldraw/state'
-import {
-	RecordsDiff,
-	UnknownRecord,
-	defineMigrations,
-	migrate,
-	squashRecordDiffs,
-} from '@tldraw/store'
+import { Signal, computed } from '@tldraw/state'
+import { UnknownRecord } from '@tldraw/store'
 import {
 	CameraRecordType,
 	InstancePageStateRecordType,
 	TLINSTANCE_ID,
 	TLPageId,
-	TLRecord,
 	TLShapeId,
 	TLStore,
 	pageIdValidator,
+	pluckPreservingValues,
 	shapeIdValidator,
 } from '@tldraw/tlschema'
 import {
 	deleteFromSessionStorage,
 	getFromSessionStorage,
-	objectMapFromEntries,
 	setInSessionStorage,
+	structuredClone,
 } from '@tldraw/utils'
 import { T } from '@tldraw/validate'
 import { uniqueId } from '../utils/uniqueId'
@@ -79,7 +73,18 @@ const Versions = {
 	Initial: 0,
 } as const
 
-const CURRENT_SESSION_STATE_SNAPSHOT_VERSION = Versions.Initial
+const CURRENT_SESSION_STATE_SNAPSHOT_VERSION = Math.max(...Object.values(Versions))
+
+function migrate(snapshot: any) {
+	if (snapshot.version < Versions.Initial) {
+		// initial version
+		// noop
+	}
+	// add further migrations down here. see TLUserPreferences.ts for an example.
+
+	// finally
+	snapshot.version = CURRENT_SESSION_STATE_SNAPSHOT_VERSION
+}
 
 /**
  * The state of the editor instance, not including any document state.
@@ -124,10 +129,6 @@ const sessionStateSnapshotValidator: T.Validator<TLSessionStateSnapshot> = T.obj
 	),
 })
 
-const sessionStateSnapshotMigrations = defineMigrations({
-	currentVersion: CURRENT_SESSION_STATE_SNAPSHOT_VERSION,
-})
-
 function migrateAndValidateSessionStateSnapshot(state: unknown): TLSessionStateSnapshot | null {
 	if (!state || typeof state !== 'object') {
 		console.warn('Invalid instance state')
@@ -137,27 +138,17 @@ function migrateAndValidateSessionStateSnapshot(state: unknown): TLSessionStateS
 		console.warn('No version in instance state')
 		return null
 	}
-	const result = migrate<TLSessionStateSnapshot>({
-		value: state,
-		fromVersion: state.version,
-		toVersion: CURRENT_SESSION_STATE_SNAPSHOT_VERSION,
-		migrations: sessionStateSnapshotMigrations,
-	})
-	if (result.type === 'error') {
-		console.warn(result.reason)
-		return null
+	if (state.version !== CURRENT_SESSION_STATE_SNAPSHOT_VERSION) {
+		state = structuredClone(state)
+		migrate(state)
 	}
 
-	const value = { ...result.value, version: CURRENT_SESSION_STATE_SNAPSHOT_VERSION }
-
 	try {
-		sessionStateSnapshotValidator.validate(value)
+		return sessionStateSnapshotValidator.validate(state)
 	} catch (e) {
 		console.warn(e)
 		return null
 	}
-
-	return value
 }
 
 /**
@@ -217,58 +208,43 @@ export function loadSessionStateSnapshotIntoStore(
 	const res = migrateAndValidateSessionStateSnapshot(snapshot)
 	if (!res) return
 
+	const instanceState = store.schema.types.instance.create({
+		id: TLINSTANCE_ID,
+		...pluckPreservingValues(store.get(TLINSTANCE_ID)),
+		currentPageId: res.currentPageId,
+		isDebugMode: res.isDebugMode,
+		isFocusMode: res.isFocusMode,
+		isToolLocked: res.isToolLocked,
+		isGridMode: res.isGridMode,
+		exportBackground: res.exportBackground,
+	})
+
 	// remove all page states and cameras and the instance state
 	const allPageStatesAndCameras = store
 		.allRecords()
 		.filter((r) => r.typeName === 'instance_page_state' || r.typeName === 'camera')
 
-	const removeDiff: RecordsDiff<TLRecord> = {
-		added: {},
-		updated: {},
-		removed: {
-			...objectMapFromEntries(allPageStatesAndCameras.map((r) => [r.id, r])),
-		},
-	}
-	if (store.has(TLINSTANCE_ID)) {
-		removeDiff.removed[TLINSTANCE_ID] = store.get(TLINSTANCE_ID)!
-	}
+	store.atomic(() => {
+		store.remove(allPageStatesAndCameras.map((r) => r.id))
+		// replace them with new ones
+		for (const ps of res.pageStates) {
+			store.put([
+				CameraRecordType.create({
+					id: CameraRecordType.createId(ps.pageId),
+					x: ps.camera.x,
+					y: ps.camera.y,
+					z: ps.camera.z,
+				}),
+				InstancePageStateRecordType.create({
+					id: InstancePageStateRecordType.createId(ps.pageId),
+					pageId: ps.pageId,
+					selectedShapeIds: ps.selectedShapeIds,
+					focusedGroupId: ps.focusedGroupId,
+				}),
+			])
+		}
 
-	const addDiff: RecordsDiff<TLRecord> = {
-		removed: {},
-		updated: {},
-		added: {
-			[TLINSTANCE_ID]: store.schema.types.instance.create({
-				id: TLINSTANCE_ID,
-				currentPageId: res.currentPageId,
-				isDebugMode: res.isDebugMode,
-				isFocusMode: res.isFocusMode,
-				isToolLocked: res.isToolLocked,
-				isGridMode: res.isGridMode,
-				exportBackground: res.exportBackground,
-			}),
-		},
-	}
-
-	// replace them with new ones
-	for (const ps of res.pageStates) {
-		const cameraId = CameraRecordType.createId(ps.pageId)
-		const pageStateId = InstancePageStateRecordType.createId(ps.pageId)
-		addDiff.added[cameraId] = CameraRecordType.create({
-			id: CameraRecordType.createId(ps.pageId),
-			x: ps.camera.x,
-			y: ps.camera.y,
-			z: ps.camera.z,
-		})
-		addDiff.added[pageStateId] = InstancePageStateRecordType.create({
-			id: InstancePageStateRecordType.createId(ps.pageId),
-			pageId: ps.pageId,
-			selectedShapeIds: ps.selectedShapeIds,
-			focusedGroupId: ps.focusedGroupId,
-		})
-	}
-
-	transact(() => {
-		store.applyDiff(squashRecordDiffs([removeDiff, addDiff]))
+		store.put([instanceState])
 		store.ensureStoreIsUsable()
 	})
 }

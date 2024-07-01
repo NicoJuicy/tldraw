@@ -13,7 +13,7 @@ export const TL_SCRIBBLE_STATES = new Set(['starting', 'paused', 'active', 'stop
  * A type for the scribble used by tldraw.
  *
  * @public */
-export type TLScribble = {
+export interface TLScribble {
 	id: string
 	points: VecModel[]
 	size: number
@@ -25,7 +25,7 @@ export type TLScribble = {
 	taper: boolean
 }
 
-/** @internal */
+/** @public */
 export const scribbleValidator: T.Validator<TLScribble> = T.object({
 	id: T.string,
 	points: T.arrayOf(vecModelValidator),

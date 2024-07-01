@@ -1,5 +1,15 @@
 import { useState } from 'react'
-import { Box, Editor, StoreSnapshot, TLPageId, TLRecord, Tldraw, TldrawImage } from 'tldraw'
+import {
+	Box,
+	Editor,
+	StoreSnapshot,
+	TLPageId,
+	TLRecord,
+	TLStoreSnapshot,
+	Tldraw,
+	TldrawImage,
+	getSnapshot,
+} from 'tldraw'
 import 'tldraw/tldraw.css'
 import initialSnapshot from './snapshot.json'
 
@@ -7,7 +17,9 @@ import initialSnapshot from './snapshot.json'
 
 export default function TldrawImageExample() {
 	const [editor, setEditor] = useState<Editor>()
-	const [snapshot, setSnapshot] = useState<StoreSnapshot<TLRecord>>(initialSnapshot)
+	const [snapshot, setSnapshot] = useState<StoreSnapshot<TLRecord>>(
+		initialSnapshot as TLStoreSnapshot
+	)
 	const [currentPageId, setCurrentPageId] = useState<TLPageId | undefined>()
 	const [showBackground, setShowBackground] = useState(true)
 	const [isDarkMode, setIsDarkMode] = useState(false)
@@ -27,7 +39,7 @@ export default function TldrawImageExample() {
 							setShowBackground(editor.getInstanceState().exportBackground)
 							setViewportPageBounds(editor.getViewportPageBounds())
 							setCurrentPageId(editor.getCurrentPageId())
-							setSnapshot(editor.store.getSnapshot())
+							setSnapshot(getSnapshot(editor.store).document)
 							setIsEditing(false)
 						} else {
 							setIsEditing(true)
@@ -61,7 +73,7 @@ export default function TldrawImageExample() {
 						onMount={(editor: Editor) => {
 							setEditor(editor)
 							editor.updateInstanceState({ isDebugMode: false })
-							editor.user.updateUserPreferences({ isDarkMode })
+							editor.user.updateUserPreferences({ colorScheme: isDarkMode ? 'dark' : 'light' })
 							if (currentPageId) {
 								editor.setCurrentPage(currentPageId)
 							}

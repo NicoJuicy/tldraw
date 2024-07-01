@@ -13,8 +13,8 @@ export interface TLUiIconProps extends React.HTMLProps<HTMLDivElement> {
 	crossOrigin?: 'anonymous' | 'use-credentials'
 }
 
-/** @public */
-export const TldrawUiIcon = memo(function TldrawUi({
+/** @public @react */
+export const TldrawUiIcon = memo(function TldrawUiIcon({
 	small,
 	invertIcon,
 	icon,
@@ -39,6 +39,18 @@ export const TldrawUiIcon = memo(function TldrawUi({
 			ref.current.style.webkitMask = `url(${asset}) center 100% / 100% no-repeat`
 		}
 	}, [ref, asset, icon])
+
+	if (icon === 'none') {
+		return (
+			<div
+				className={classNames(
+					'tlui-icon tlui-icon__placeholder',
+					{ 'tlui-icon__small': small },
+					className
+				)}
+			/>
+		)
+	}
 
 	return (
 		<div

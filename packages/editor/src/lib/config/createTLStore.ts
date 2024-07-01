@@ -1,46 +1,66 @@
-import { HistoryEntry, SerializedStore, Store, StoreSchema } from '@tldraw/store'
-import {
-	SchemaShapeInfo,
-	TLRecord,
-	TLStore,
-	TLStoreProps,
-	TLUnknownShape,
-	createTLSchema,
-} from '@tldraw/tlschema'
-import { TLShapeUtilConstructor } from '../editor/shapes/ShapeUtil'
+import { HistoryEntry, MigrationSequence, SerializedStore, Store, StoreSchema } from '@tldraw/store'
+import { SchemaPropsInfo, TLRecord, TLStore, TLStoreProps, createTLSchema } from '@tldraw/tlschema'
+import { TLAnyBindingUtilConstructor, checkBindings } from './defaultBindings'
 import { TLAnyShapeUtilConstructor, checkShapesAndAddCore } from './defaultShapes'
 
 /** @public */
-export type TLStoreOptions = {
+export interface TLStoreBaseOptions {
+	/** The initial data for the store. */
 	initialData?: SerializedStore<TLRecord>
+
+	/** The default name for the store. */
 	defaultName?: string
-} & (
-	| { shapeUtils?: readonly TLAnyShapeUtilConstructor[] }
-	| { schema?: StoreSchema<TLRecord, TLStoreProps> }
-)
+}
+
+/** @public */
+export type TLStoreOptions = TLStoreBaseOptions &
+	(
+		| {
+				id?: string
+				shapeUtils?: readonly TLAnyShapeUtilConstructor[]
+				migrations?: readonly MigrationSequence[]
+				bindingUtils?: readonly TLAnyBindingUtilConstructor[]
+		  }
+		| {
+				id?: string
+				schema?: StoreSchema<TLRecord, TLStoreProps>
+		  }
+	)
 
 /** @public */
 export type TLStoreEventInfo = HistoryEntry<TLRecord>
 
 /**
- * A helper for creating a TLStore. Custom shapes cannot override default shapes.
+ * A helper for creating a TLStore.
  *
  * @param opts - Options for creating the store.
  *
  * @public */
-export function createTLStore({ initialData, defaultName = '', ...rest }: TLStoreOptions): TLStore {
+export function createTLStore({
+	initialData,
+	defaultName = '',
+	id,
+	...rest
+}: TLStoreOptions = {}): TLStore {
 	const schema =
 		'schema' in rest && rest.schema
 			? // we have a schema
 				rest.schema
 			: // we need a schema
 				createTLSchema({
-					shapes: currentPageShapesToShapeMap(
-						checkShapesAndAddCore('shapeUtils' in rest && rest.shapeUtils ? rest.shapeUtils : [])
-					),
+					shapes:
+						'shapeUtils' in rest && rest.shapeUtils
+							? utilsToMap(checkShapesAndAddCore(rest.shapeUtils))
+							: undefined,
+					bindings:
+						'bindingUtils' in rest && rest.bindingUtils
+							? utilsToMap(checkBindings(rest.bindingUtils))
+							: undefined,
+					migrations: 'migrations' in rest ? rest.migrations : undefined,
 				})
 
 	return new Store({
+		id,
 		schema,
 		initialData,
 		props: {
@@ -49,9 +69,9 @@ export function createTLStore({ initialData, defaultName = '', ...rest }: TLStor
 	})
 }
 
-function currentPageShapesToShapeMap(shapeUtils: TLShapeUtilConstructor<TLUnknownShape>[]) {
+function utilsToMap<T extends SchemaPropsInfo & { type: string }>(utils: T[]) {
 	return Object.fromEntries(
-		shapeUtils.map((s): [string, SchemaShapeInfo] => [
+		utils.map((s): [string, SchemaPropsInfo] => [
 			s.type,
 			{
 				props: s.props,

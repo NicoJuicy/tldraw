@@ -9,11 +9,13 @@ import {
 	TLTextShape,
 	VecLike,
 	isNonNull,
+	preventDefault,
+	stopEventPropagation,
 	uniq,
 	useEditor,
 	useValue,
 } from '@tldraw/editor'
-import { compressToBase64, decompressFromBase64 } from 'lz-string'
+import lz from 'lz-string'
 import { useCallback, useEffect } from 'react'
 import { TLUiEventSource, useUiEvents } from '../context/events'
 import { pasteExcalidrawContent } from './clipboard/pasteExcalidrawContent'
@@ -321,12 +323,12 @@ async function handleClipboardThings(editor: Editor, things: ClipboardThing[], p
 
 						thing.source.then((text) => {
 							// first, see if we can find tldraw content, which is JSON inside of an html comment
-							const tldrawHtmlComment = text.match(/<tldraw[^>]*>(.*)<\/tldraw>/)?.[1]
+							const tldrawHtmlComment = text.match(/<div data-tldraw[^>]*>(.*)<\/div>/)?.[1]
 
 							if (tldrawHtmlComment) {
 								try {
 									// If we've found tldraw content in the html string, use that as JSON
-									const jsonComment = decompressFromBase64(tldrawHtmlComment)
+									const jsonComment = lz.decompressFromBase64(tldrawHtmlComment)
 									if (jsonComment === null) {
 										r({
 											type: 'error',
@@ -480,8 +482,10 @@ async function handleClipboardThings(editor: Editor, things: ClipboardThing[], p
  * @param editor - The editor instance.
  * @public
  */
-const handleNativeOrMenuCopy = (editor: Editor) => {
-	const content = editor.getContentFromCurrentPage(editor.getSelectedShapeIds())
+const handleNativeOrMenuCopy = async (editor: Editor) => {
+	const content = await editor.resolveAssetsInContent(
+		editor.getContentFromCurrentPage(editor.getSelectedShapeIds())
+	)
 	if (!content) {
 		if (navigator && navigator.clipboard) {
 			navigator.clipboard.writeText('')
@@ -489,7 +493,7 @@ const handleNativeOrMenuCopy = (editor: Editor) => {
 		return
 	}
 
-	const stringifiedClipboard = compressToBase64(
+	const stringifiedClipboard = lz.compressToBase64(
 		JSON.stringify({
 			type: 'application/tldraw',
 			kind: 'content',
@@ -521,7 +525,7 @@ const handleNativeOrMenuCopy = (editor: Editor) => {
 			.filter(isNonNull)
 
 		if (navigator.clipboard?.write) {
-			const htmlBlob = new Blob([`<tldraw>${stringifiedClipboard}</tldraw>`], {
+			const htmlBlob = new Blob([`<div data-tldraw>${stringifiedClipboard}</div>`], {
 				type: 'text/html',
 			})
 
@@ -542,7 +546,7 @@ const handleNativeOrMenuCopy = (editor: Editor) => {
 				}),
 			])
 		} else if (navigator.clipboard.writeText) {
-			navigator.clipboard.writeText(`<tldraw>${stringifiedClipboard}</tldraw>`)
+			navigator.clipboard.writeText(`<div data-tldraw>${stringifiedClipboard}</div>`)
 		}
 	}
 }
@@ -553,20 +557,20 @@ export function useMenuClipboardEvents() {
 	const trackEvent = useUiEvents()
 
 	const copy = useCallback(
-		function onCopy(source: TLUiEventSource) {
+		async function onCopy(source: TLUiEventSource) {
 			if (editor.getSelectedShapeIds().length === 0) return
 
-			handleNativeOrMenuCopy(editor)
+			await handleNativeOrMenuCopy(editor)
 			trackEvent('copy', { source })
 		},
 		[editor, trackEvent]
 	)
 
 	const cut = useCallback(
-		function onCut(source: TLUiEventSource) {
+		async function onCut(source: TLUiEventSource) {
 			if (editor.getSelectedShapeIds().length === 0) return
 
-			handleNativeOrMenuCopy(editor)
+			await handleNativeOrMenuCopy(editor)
 			editor.deleteShapes(editor.getSelectedShapeIds())
 			trackEvent('cut', { source })
 		},
@@ -582,7 +586,7 @@ export function useMenuClipboardEvents() {
 			// If we're editing a shape, or we are focusing an editable input, then
 			// we would want the user's paste interaction to go to that element or
 			// input instead; e.g. when pasting text into a text shape's content
-			if (editor.getEditingShapeId() !== null || disallowClipboardEvents(editor)) return
+			if (editor.getEditingShapeId() !== null) return
 
 			if (Array.isArray(data) && data[0] instanceof ClipboardItem) {
 				handlePasteFromClipboardApi(editor, data, point)
@@ -615,25 +619,30 @@ export function useNativeClipboardEvents() {
 
 	useEffect(() => {
 		if (!appIsFocused) return
-		const copy = () => {
+		const copy = async (e: ClipboardEvent) => {
 			if (
 				editor.getSelectedShapeIds().length === 0 ||
 				editor.getEditingShapeId() !== null ||
 				disallowClipboardEvents(editor)
-			)
+			) {
 				return
-			handleNativeOrMenuCopy(editor)
+			}
+
+			preventDefault(e)
+			await handleNativeOrMenuCopy(editor)
 			trackEvent('copy', { source: 'kbd' })
 		}
 
-		function cut() {
+		async function cut(e: ClipboardEvent) {
 			if (
 				editor.getSelectedShapeIds().length === 0 ||
 				editor.getEditingShapeId() !== null ||
 				disallowClipboardEvents(editor)
-			)
+			) {
 				return
-			handleNativeOrMenuCopy(editor)
+			}
+			preventDefault(e)
+			await handleNativeOrMenuCopy(editor)
 			editor.deleteShapes(editor.getSelectedShapeIds())
 			trackEvent('cut', { source: 'kbd' })
 		}
@@ -641,16 +650,17 @@ export function useNativeClipboardEvents() {
 		let disablingMiddleClickPaste = false
 		const pointerUpHandler = (e: PointerEvent) => {
 			if (e.button === 1) {
+				// middle mouse button
 				disablingMiddleClickPaste = true
-				requestAnimationFrame(() => {
+				editor.timers.requestAnimationFrame(() => {
 					disablingMiddleClickPaste = false
 				})
 			}
 		}
 
-		const paste = (event: ClipboardEvent) => {
+		const paste = (e: ClipboardEvent) => {
 			if (disablingMiddleClickPaste) {
-				event.stopPropagation()
+				stopEventPropagation(e)
 				return
 			}
 
@@ -660,8 +670,8 @@ export function useNativeClipboardEvents() {
 			if (editor.getEditingShapeId() !== null || disallowClipboardEvents(editor)) return
 
 			// First try to use the clipboard data on the event
-			if (event.clipboardData && !editor.inputs.shiftKey) {
-				handlePasteFromEventClipboardData(editor, event.clipboardData)
+			if (e.clipboardData && !editor.inputs.shiftKey) {
+				handlePasteFromEventClipboardData(editor, e.clipboardData)
 			} else {
 				// Or else use the clipboard API
 				navigator.clipboard.read().then((clipboardItems) => {
@@ -671,6 +681,7 @@ export function useNativeClipboardEvents() {
 				})
 			}
 
+			preventDefault(e)
 			trackEvent('paste', { source: 'kbd' })
 		}
 

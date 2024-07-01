@@ -15,14 +15,24 @@ import { interval } from './interval'
 import {
 	TLIncompatibilityReason,
 	TLPushRequest,
-	TLSYNC_PROTOCOL_VERSION,
 	TLSocketClientSentEvent,
 	TLSocketServerSentDataEvent,
 	TLSocketServerSentEvent,
+	getTlsyncProtocolVersion,
 } from './protocol'
-import './requestAnimationFrame.polyfill'
 
 type SubscribingFn<T> = (cb: (val: T) => void) => () => void
+
+/**
+ * These are our private codes to be sent from server->client.
+ * They are in the private range of the websocket code range.
+ * See: https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent/code
+ *
+ * @public
+ */
+export const TLCloseEventCode = {
+	NOT_FOUND: 4099,
+} as const
 
 /** @public */
 export type TLPersistentClientSocketStatus = 'online' | 'offline' | 'error'
@@ -33,7 +43,7 @@ export type TLPersistentClientSocketStatus = 'online' | 'offline' | 'error'
  *
  * @public
  */
-export type TLPersistentClientSocket<R extends UnknownRecord = UnknownRecord> = {
+export interface TLPersistentClientSocket<R extends UnknownRecord = UnknownRecord> {
 	/** Whether there is currently an open connection to the server. */
 	connectionStatus: 'online' | 'offline' | 'error'
 	/** Send a message to the server */
@@ -236,6 +246,7 @@ export class TLSyncClient<R extends UnknownRecord, S extends Store<R> = Store<R>
 				})
 			)
 		}
+
 		// if the socket is already online before this client was instantiated
 		// then we should send a connect message right away
 		if (this.socket.connectionStatus === 'online') {
@@ -260,7 +271,7 @@ export class TLSyncClient<R extends UnknownRecord, S extends Store<R> = Store<R>
 			type: 'connect',
 			connectRequestId: this.latestConnectRequestId,
 			schema: this.store.schema.serialize(),
-			protocolVersion: TLSYNC_PROTOCOL_VERSION,
+			protocolVersion: getTlsyncProtocolVersion(),
 			lastServerClock: this.lastServerClock,
 		})
 	}
@@ -272,7 +283,9 @@ export class TLSyncClient<R extends UnknownRecord, S extends Store<R> = Store<R>
 			this.lastServerClock = 0
 		}
 		// kill all presence state
-		this.store.remove(Object.keys(this.store.serialize('presence')) as any)
+		this.store.mergeRemoteChanges(() => {
+			this.store.remove(Object.keys(this.store.serialize('presence')) as any)
+		})
 		this.lastPushedPresenceState = null
 		this.isConnectedToRoom = false
 		this.pendingPushRequests = []
@@ -321,7 +334,7 @@ export class TLSyncClient<R extends UnknownRecord, S extends Store<R> = Store<R>
 				const wipeAll = event.hydrationType === 'wipe_all'
 				if (!wipeAll) {
 					// if we're only wiping presence data, undo the speculative changes first
-					this.store.applyDiff(reverseRecordsDiff(stashedChanges), false)
+					this.store.applyDiff(reverseRecordsDiff(stashedChanges), { runCallbacks: false })
 				}
 
 				// now wipe all presence data and, if needed, all document data
@@ -336,12 +349,22 @@ export class TLSyncClient<R extends UnknownRecord, S extends Store<R> = Store<R>
 
 				// then apply the upstream changes
 				this.applyNetworkDiff({ ...wipeDiff, ...event.diff }, true)
+
+				this.isConnectedToRoom = true
+
+				// now re-apply the speculative changes creating a new push request with the
+				// appropriate diff
+				const speculativeChanges = this.store.filterChangesByScope(
+					this.store.extractingChanges(() => {
+						this.store.applyDiff(stashedChanges)
+					}),
+					'document'
+				)
+				if (speculativeChanges) this.push(speculativeChanges)
 			})
 
-			// now re-apply the speculative changes as a 'user' to trigger
-			// creating a new push request with the appropriate diff
-			this.isConnectedToRoom = true
-			this.store.applyDiff(stashedChanges)
+			// this.isConnectedToRoom = true
+			// this.store.applyDiff(stashedChanges, false)
 
 			this.store.ensureStoreIsUsable()
 			// TODO: reinstate isNew
@@ -394,35 +417,51 @@ export class TLSyncClient<R extends UnknownRecord, S extends Store<R> = Store<R>
 	close() {
 		this.debug('closing')
 		this.disposables.forEach((dispose) => dispose())
+		this.flushPendingPushRequests.cancel?.()
+		this.scheduleRebase.cancel?.()
 	}
 
 	lastPushedPresenceState: R | null = null
 
 	private pushPresence(nextPresence: R | null) {
+		// make sure we push any document changes first
+		this.store._flushHistory()
+
 		if (!this.isConnectedToRoom) {
 			// if we're offline, don't do anything
 			return
 		}
-		let req: TLPushRequest<R> | null = null
+
+		let presence: TLPushRequest<any>['presence'] = undefined
 		if (!this.lastPushedPresenceState && nextPresence) {
 			// we don't have a last presence state, so we need to push the full state
-			req = {
-				type: 'push',
-				presence: [RecordOpType.Put, nextPresence],
-				clientClock: this.clientClock++,
-			}
+			presence = [RecordOpType.Put, nextPresence]
 		} else if (this.lastPushedPresenceState && nextPresence) {
 			// we have a last presence state, so we need to push a diff if there is one
 			const diff = diffRecord(this.lastPushedPresenceState, nextPresence)
 			if (diff) {
-				req = {
-					type: 'push',
-					presence: [RecordOpType.Patch, diff],
-					clientClock: this.clientClock++,
-				}
+				presence = [RecordOpType.Patch, diff]
 			}
 		}
+
+		if (!presence) return
 		this.lastPushedPresenceState = nextPresence
+
+		// if there is a pending push that has not been sent and does not already include a presence update,
+		// then add this presence update to it
+		const lastPush = this.pendingPushRequests.at(-1)
+		if (lastPush && !lastPush.sent && !lastPush.request.presence) {
+			lastPush.request.presence = presence
+			return
+		}
+
+		// otherwise, create a new push request
+		const req: TLPushRequest<R> = {
+			type: 'push',
+			clientClock: this.clientClock++,
+			presence,
+		}
+
 		if (req) {
 			this.pendingPushRequests.push({ request: req, sent: false })
 			this.flushPendingPushRequests()
@@ -525,7 +564,7 @@ export class TLSyncClient<R extends UnknownRecord, S extends Store<R> = Store<R>
 			}
 		}
 		if (hasChanges) {
-			this.store.applyDiff(changes, runCallbacks)
+			this.store.applyDiff(changes, { runCallbacks })
 		}
 	}
 
@@ -541,7 +580,7 @@ export class TLSyncClient<R extends UnknownRecord, S extends Store<R> = Store<R>
 		try {
 			this.store.mergeRemoteChanges(() => {
 				// first undo speculative changes
-				this.store.applyDiff(reverseRecordsDiff(this.speculativeChanges), false)
+				this.store.applyDiff(reverseRecordsDiff(this.speculativeChanges), { runCallbacks: false })
 
 				// then apply network diffs on top of known-to-be-synced data
 				for (const diff of diffs) {
@@ -562,7 +601,7 @@ export class TLSyncClient<R extends UnknownRecord, S extends Store<R> = Store<R>
 						this.pendingPushRequests.shift()
 					} else if (diff.action === 'commit') {
 						const { request } = this.pendingPushRequests.shift()!
-						if ('diff' in request) {
+						if ('diff' in request && request.diff) {
 							this.applyNetworkDiff(request.diff, true)
 						}
 					} else {
@@ -574,7 +613,7 @@ export class TLSyncClient<R extends UnknownRecord, S extends Store<R> = Store<R>
 				try {
 					this.speculativeChanges = this.store.extractingChanges(() => {
 						for (const { request } of this.pendingPushRequests) {
-							if (!('diff' in request)) continue
+							if (!('diff' in request) || !request.diff) continue
 							this.applyNetworkDiff(request.diff, true)
 						}
 					})

@@ -1,31 +1,31 @@
 import { TLPageId, useEditor } from '@tldraw/editor'
 import { useCallback, useRef } from 'react'
 import { TldrawUiInput } from '../primitives/TldrawUiInput'
+
 /** @public */
+export interface PageItemInputProps {
+	name: string
+	id: TLPageId
+	isCurrentPage: boolean
+}
+
+/** @public @react */
 export const PageItemInput = function PageItemInput({
 	name,
 	id,
 	isCurrentPage,
-}: {
-	name: string
-	id: TLPageId
-	isCurrentPage: boolean
-}) {
+}: PageItemInputProps) {
 	const editor = useEditor()
 
 	const rInput = useRef<HTMLInputElement | null>(null)
 
+	const handleFocus = useCallback(() => {
+		editor.mark('rename page')
+	}, [editor])
+
 	const handleChange = useCallback(
 		(value: string) => {
-			editor.renamePage(id, value ? value : 'New Page', { ephemeral: true })
-		},
-		[editor, id]
-	)
-
-	const handleComplete = useCallback(
-		(value: string) => {
-			editor.mark('rename page')
-			editor.renamePage(id, value || 'New Page', { ephemeral: false })
+			editor.renamePage(id, value || 'New Page')
 		},
 		[editor, id]
 	)
@@ -36,11 +36,10 @@ export const PageItemInput = function PageItemInput({
 			ref={(el) => (rInput.current = el)}
 			defaultValue={name}
 			onValueChange={handleChange}
-			onComplete={handleComplete}
-			onCancel={handleComplete}
+			onFocus={handleFocus}
 			shouldManuallyMaintainScrollPositionWhenFocused
-			autofocus={isCurrentPage}
-			autoselect
+			autoFocus={isCurrentPage}
+			autoSelect
 		/>
 	)
 }

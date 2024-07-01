@@ -6,7 +6,6 @@ import {
 	getDefaultColorTheme,
 } from '@tldraw/tlschema'
 import { Fragment, ReactElement } from 'react'
-import { SVG_PADDING } from '../constants'
 import { Editor } from './Editor'
 import { SvgExportContext, SvgExportContextProvider, SvgExportDef } from './types/SvgExportContext'
 import { TLSvgOptions } from './types/misc-types'
@@ -14,7 +13,7 @@ import { TLSvgOptions } from './types/misc-types'
 export async function getSvgJsx(
 	editor: Editor,
 	shapes: TLShapeId[] | TLShape[],
-	opts = {} as Partial<TLSvgOptions>
+	opts: TLSvgOptions = {}
 ) {
 	const ids =
 		typeof shapes[0] === 'string' ? (shapes as TLShapeId[]) : (shapes as TLShape[]).map((s) => s.id)
@@ -22,7 +21,12 @@ export async function getSvgJsx(
 	if (ids.length === 0) return
 	if (!window.document) throw Error('No document')
 
-	const { scale = 1, background = false, padding = SVG_PADDING, preserveAspectRatio = false } = opts
+	const {
+		scale = 1,
+		background = false,
+		padding = editor.options.defaultSvgPadding,
+		preserveAspectRatio = false,
+	} = opts
 
 	const isDarkMode = opts.darkMode ?? editor.user.getIsDarkMode()
 	const theme = getDefaultColorTheme({ isDarkMode })
@@ -38,7 +42,8 @@ export async function getSvgJsx(
 	if (opts.bounds) {
 		bbox = opts.bounds
 	} else {
-		for (const { maskedPageBounds } of renderingShapes) {
+		for (const { id } of renderingShapes) {
+			const maskedPageBounds = editor.getShapeMaskedPageBounds(id)
 			if (!maskedPageBounds) continue
 			if (bbox) {
 				bbox.union(maskedPageBounds)
@@ -183,7 +188,6 @@ export async function getSvgJsx(
 	const svg = (
 		<SvgExportContextProvider editor={editor} context={exportContext}>
 			<svg
-				xmlns="http://www.w3.org/2000/svg"
 				preserveAspectRatio={preserveAspectRatio ? preserveAspectRatio : undefined}
 				direction="ltr"
 				width={w}

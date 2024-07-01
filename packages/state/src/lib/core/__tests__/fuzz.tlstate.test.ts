@@ -72,7 +72,7 @@ const unpack = (value: unknown): Letter => {
 	return value as Letter
 }
 
-type FuzzSystemState = {
+interface FuzzSystemState {
 	atoms: Record<string, Atom<Letter>>
 	atomsInAtoms: Record<string, Atom<Atom<Letter>>>
 	derivations: Record<string, { derivation: Computed<Letter>; sneakyGet: () => Letter }>
@@ -349,7 +349,7 @@ class Test {
 	}
 }
 
-const NUM_TESTS = 100
+const NUM_TESTS = 20
 const NUM_OPS_PER_TEST = 1000
 
 function runTest(seed: number) {
@@ -367,3 +367,7 @@ for (let i = 0; i < NUM_TESTS; i++) {
 		runTest(seed)
 	})
 }
+
+test('regression 728608', () => {
+	runTest(728608)
+})

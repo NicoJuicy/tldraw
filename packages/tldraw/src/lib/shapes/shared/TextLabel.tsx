@@ -1,21 +1,19 @@
 import {
 	Box,
-	TLDefaultColorStyle,
 	TLDefaultFillStyle,
 	TLDefaultFontStyle,
 	TLDefaultHorizontalAlignStyle,
 	TLDefaultVerticalAlignStyle,
 	TLShapeId,
-	getDefaultColorTheme,
-	useIsDarkMode,
 } from '@tldraw/editor'
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { TextArea } from '../text/TextArea'
 import { TextHelpers } from './TextHelpers'
 import { isLegacyAlign } from './legacyProps'
 import { useEditableText } from './useEditableText'
 
-type TextLabelProps = {
+/** @public */
+export interface TextLabelProps {
 	id: TLShapeId
 	type: string
 	font: TLDefaultFontStyle
@@ -26,15 +24,19 @@ type TextLabelProps = {
 	verticalAlign: TLDefaultVerticalAlignStyle
 	wrap?: boolean
 	text: string
-	labelColor: TLDefaultColorStyle
+	labelColor: string
 	bounds?: Box
+	isNote?: boolean
+	isSelected: boolean
+	onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
 	classNamePrefix?: string
 	style?: React.CSSProperties
 	textWidth?: number
 	textHeight?: number
+	padding?: number
 }
 
-/** @public */
+/** @public @react */
 export const TextLabel = React.memo(function TextLabel({
 	id,
 	type,
@@ -46,19 +48,30 @@ export const TextLabel = React.memo(function TextLabel({
 	align,
 	verticalAlign,
 	wrap,
-	bounds,
+	isSelected,
+	padding = 0,
+	onKeyDown: handleKeyDownCustom,
 	classNamePrefix,
 	style,
 	textWidth,
 	textHeight,
 }: TextLabelProps) {
-	const { rInput, isEmpty, isEditing, ...editableTextRest } = useEditableText(id, type, text)
+	const { rInput, isEmpty, isEditing, isEditingAnything, ...editableTextRest } = useEditableText(
+		id,
+		type,
+		text
+	)
+
+	const [initialText, setInitialText] = useState(text)
+
+	useEffect(() => {
+		if (!isEditing) setInitialText(text)
+	}, [isEditing, text])
 
 	const finalText = TextHelpers.normalizeTextForDom(text)
 	const hasText = finalText.length > 0
 
 	const legacyAlign = isLegacyAlign(align)
-	const theme = getDefaultColorTheme({ isDarkMode: useIsDarkMode() })
 
 	if (!isEditing && !hasText) {
 		return null
@@ -73,38 +86,47 @@ export const TextLabel = React.memo(function TextLabel({
 			data-align={align}
 			data-hastext={!isEmpty}
 			data-isediting={isEditing}
+			data-iseditinganything={isEditingAnything}
 			data-textwrap={!!wrap}
+			data-isselected={isSelected}
 			style={{
 				justifyContent: align === 'middle' || legacyAlign ? 'center' : align,
 				alignItems: verticalAlign === 'middle' ? 'center' : verticalAlign,
-				...(bounds
-					? {
-							top: bounds.minY,
-							left: bounds.minX,
-							width: bounds.width,
-							height: bounds.height,
-							position: 'absolute',
-						}
-					: {}),
+				padding,
 				...style,
 			}}
 		>
 			<div
-				className={`${cssPrefix}-label__inner`}
+				className={`${cssPrefix}-label__inner tl-text-content__wrapper`}
 				style={{
 					fontSize,
-					lineHeight: fontSize * lineHeight + 'px',
-					minHeight: lineHeight + 32,
-					minWidth: textWidth || 0,
-					color: theme[labelColor].solid,
-					width: textWidth,
-					height: textHeight,
+					lineHeight: Math.floor(fontSize * lineHeight) + 'px',
+					minHeight: Math.floor(fontSize * lineHeight) + 'px',
+					minWidth: Math.ceil(textWidth || 0),
+					color: labelColor,
+					width: textWidth ? Math.ceil(textWidth) : undefined,
+					height: textHeight ? Math.ceil(textHeight) : undefined,
 				}}
 			>
-				<div className={`${cssPrefix} tl-text tl-text-content`} dir="ltr">
-					{finalText}
+				<div className={`${cssPrefix} tl-text tl-text-content`} dir="auto">
+					{finalText.split('\n').map((lineOfText, index) => (
+						<div key={index} dir="auto">
+							{lineOfText}
+						</div>
+					))}
 				</div>
-				{isEditing && <TextArea ref={rInput} text={text} {...editableTextRest} />}
+				{(isEditingAnything || isSelected) && (
+					<TextArea
+						ref={rInput}
+						// We need to add the initial value as the key here because we need this component to
+						// 'reset' when this state changes and grab the latest defaultValue.
+						key={initialText}
+						text={text}
+						isEditing={isEditing}
+						{...editableTextRest}
+						handleKeyDown={handleKeyDownCustom ?? editableTextRest.handleKeyDown}
+					/>
+				)}
 			</div>
 		</div>
 	)

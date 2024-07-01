@@ -1,4 +1,10 @@
-import { StateNode, TLInterruptEvent, TLKeyboardEvent, TLPointerEventInfo } from '@tldraw/editor'
+import {
+	StateNode,
+	TLInterruptEvent,
+	TLKeyboardEvent,
+	TLPointerEventInfo,
+	TLStateNodeConstructor,
+} from '@tldraw/editor'
 import { Idle } from './childStates/Idle'
 import { Pointing } from './childStates/Pointing'
 import { ZoomBrushing } from './childStates/ZoomBrushing'
@@ -7,7 +13,7 @@ import { ZoomBrushing } from './childStates/ZoomBrushing'
 export class ZoomTool extends StateNode {
 	static override id = 'zoom'
 	static override initial = 'idle'
-	static override children = () => [Idle, ZoomBrushing, Pointing]
+	static override children = (): TLStateNodeConstructor[] => [Idle, ZoomBrushing, Pointing]
 
 	info = {} as TLPointerEventInfo & { onInteractionEnd?: string }
 
@@ -19,10 +25,7 @@ export class ZoomTool extends StateNode {
 
 	override onExit = () => {
 		this.parent.setCurrentToolIdMask(undefined)
-		this.editor.updateInstanceState(
-			{ zoomBrush: null, cursor: { type: 'default', rotation: 0 } },
-			{ ephemeral: true }
-		)
+		this.editor.updateInstanceState({ zoomBrush: null, cursor: { type: 'default', rotation: 0 } })
 		this.parent.setCurrentToolIdMask(undefined)
 	}
 
@@ -53,15 +56,9 @@ export class ZoomTool extends StateNode {
 
 	private updateCursor() {
 		if (this.editor.inputs.altKey) {
-			this.editor.updateInstanceState(
-				{ cursor: { type: 'zoom-out', rotation: 0 } },
-				{ ephemeral: true }
-			)
+			this.editor.setCursor({ type: 'zoom-out', rotation: 0 })
 		} else {
-			this.editor.updateInstanceState(
-				{ cursor: { type: 'zoom-in', rotation: 0 } },
-				{ ephemeral: true }
-			)
+			this.editor.setCursor({ type: 'zoom-in', rotation: 0 })
 		}
 	}
 }

@@ -45,6 +45,19 @@ export class DictValidator<Key extends string, Value> extends Validator<Record<K
     readonly valueValidator: Validatable<Value>;
 }
 
+// @public (undocumented)
+export type ExtractOptionalKeys<T extends object> = {
+    [K in keyof T]: undefined extends T[K] ? K : never;
+}[keyof T];
+
+// @public (undocumented)
+export type ExtractRequiredKeys<T extends object> = {
+    [K in keyof T]: undefined extends T[K] ? never : K;
+}[keyof T];
+
+// @public
+const httpUrl: Validator<string>;
+
 // @public
 const indexKey: Validator<IndexKey>;
 
@@ -82,6 +95,9 @@ function nullable<T>(validator: Validatable<T>): Validator<null | T>;
 
 // @public
 const number: Validator<number>;
+
+// @internal (undocumented)
+function numberUnion<Key extends string, Config extends UnionValidatorConfig<Key, Config>>(key: Key, config: Config): UnionValidator<Key, Config>;
 
 // @public
 function object<Shape extends object>(config: {
@@ -134,6 +150,7 @@ declare namespace T {
         jsonDict,
         dict,
         union,
+        numberUnion,
         model,
         setEnum,
         optional,
@@ -147,6 +164,7 @@ declare namespace T {
         Validator,
         ArrayOfValidator,
         ObjectValidator,
+        UnionValidatorConfig,
         UnionValidator,
         DictValidator,
         unknown,
@@ -162,9 +180,12 @@ declare namespace T {
         bigint,
         array,
         unknownObject,
+        ExtractRequiredKeys,
+        ExtractOptionalKeys,
         jsonValue,
         linkUrl,
         srcUrl,
+        httpUrl,
         indexKey
     }
 }
@@ -178,10 +199,19 @@ function union<Key extends string, Config extends UnionValidatorConfig<Key, Conf
 
 // @public (undocumented)
 export class UnionValidator<Key extends string, Config extends UnionValidatorConfig<Key, Config>, UnknownValue = never> extends Validator<TypeOf<Config[keyof Config]> | UnknownValue> {
-    constructor(key: Key, config: Config, unknownValueValidation: (value: object, variant: string) => UnknownValue);
+    constructor(key: Key, config: Config, unknownValueValidation: (value: object, variant: string) => UnknownValue, useNumberKeys: boolean);
     // (undocumented)
     validateUnknownVariants<Unknown>(unknownValueValidation: (value: object, variant: string) => Unknown): UnionValidator<Key, Config, Unknown>;
 }
+
+// @public (undocumented)
+export type UnionValidatorConfig<Key extends string, Config> = {
+    readonly [Variant in keyof Config]: Validatable<any> & {
+        validate: (input: any) => {
+            readonly [K in Key]: Variant;
+        };
+    };
+};
 
 // @public
 const unknown: Validator<unknown>;
@@ -190,10 +220,11 @@ const unknown: Validator<unknown>;
 const unknownObject: Validator<Record<string, unknown>>;
 
 // @public (undocumented)
-type Validatable<T> = {
+interface Validatable<T> {
+    // (undocumented)
     validate: (value: unknown) => T;
     validateUsingKnownGoodVersion?: (knownGoodValue: T, newValue: unknown) => T;
-};
+}
 
 // @public (undocumented)
 class ValidationError extends Error {

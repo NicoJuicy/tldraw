@@ -7,6 +7,13 @@
 		"sidebar_behavior": "show-links"
 	},
 	{
+		"id": "releases",
+		"title": "Releases",
+		"description": "Introduction articles for tldraw.",
+		"categories": [],
+		"sidebar_behavior": "hidden"
+	},
+	{
 		"id": "docs",
 		"title": "Learn tldraw",
 		"description": "Learn to use the tldraw SDK.",
@@ -57,6 +64,10 @@
 					{
 						"id": "Namespace",
 						"path": null
+					},
+					{
+						"id": "Component",
+						"path": null
 					}
 				],
 				"hero": null
@@ -92,6 +103,10 @@
 					},
 					{
 						"id": "Namespace",
+						"path": null
+					},
+					{
+						"id": "Component",
 						"path": null
 					}
 				],
@@ -129,6 +144,10 @@
 					{
 						"id": "Namespace",
 						"path": null
+					},
+					{
+						"id": "Component",
+						"path": null
 					}
 				],
 				"hero": null
@@ -165,6 +184,10 @@
 					{
 						"id": "Namespace",
 						"path": null
+					},
+					{
+						"id": "Component",
+						"path": null
 					}
 				],
 				"hero": null
@@ -200,6 +223,10 @@
 					},
 					{
 						"id": "Namespace",
+						"path": null
+					},
+					{
+						"id": "Component",
 						"path": null
 					}
 				],

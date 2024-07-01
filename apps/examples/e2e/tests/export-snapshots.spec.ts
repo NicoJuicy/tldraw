@@ -33,6 +33,17 @@ test.describe('Export snapshots', () => {
 				},
 			},
 		],
+		'Exports geo text with mixed RTL': [
+			{
+				id: 'shape:testShape' as TLShapeId,
+				type: 'geo',
+				props: {
+					w: 300,
+					h: 300,
+					text: 'unicode is cool!\nكتابة باللغة  العرب!',
+				},
+			},
+		],
 	} as Record<string, TLShapePartial[]>
 
 	for (const fill of ['none', 'semi', 'solid', 'pattern']) {
@@ -58,8 +69,8 @@ test.describe('Export snapshots', () => {
 					fill: fill,
 					arrowheadStart: 'square',
 					arrowheadEnd: 'dot',
-					start: { type: 'point', x: 0, y: 0 },
-					end: { type: 'point', x: 100, y: 100 },
+					start: { x: 0, y: 0 },
+					end: { x: 100, y: 100 },
 					bend: 20,
 				},
 			},
@@ -138,8 +149,8 @@ test.describe('Export snapshots', () => {
 					arrowheadStart: 'square',
 					arrowheadEnd: 'arrow',
 					font,
-					start: { type: 'point', x: 0, y: 0 },
-					end: { type: 'point', x: 100, y: 100 },
+					start: { x: 0, y: 0 },
+					end: { x: 100, y: 100 },
 					bend: 20,
 					text: 'test',
 				},
@@ -156,8 +167,8 @@ test.describe('Export snapshots', () => {
 					arrowheadStart: 'square',
 					arrowheadEnd: 'arrow',
 					font,
-					start: { type: 'point', x: 0, y: 0 },
-					end: { type: 'point', x: 100, y: 100 },
+					start: { x: 0, y: 0 },
+					end: { x: 100, y: 100 },
 					bend: 20,
 					text: 'test',
 				},
@@ -197,7 +208,7 @@ test.describe('Export snapshots', () => {
 	for (const [name, shapes] of filteredSnapshots) {
 		test(`Exports with ${name} in dark mode`, async ({ page, api }) => {
 			await page.evaluate((shapes) => {
-				editor.user.updateUserPreferences({ isDarkMode: true })
+				editor.user.updateUserPreferences({ colorScheme: 'dark' })
 				editor
 					.updateInstanceState({ exportBackground: false })
 					.selectAll()

@@ -16,7 +16,12 @@ const ids = {
 }
 
 beforeEach(() => {
-	editor = new TestEditor()
+	editor = new TestEditor({
+		options: {
+			edgeScrollDelay: 0,
+			edgeScrollEaseDuration: 0,
+		},
+	})
 	editor.setScreenBounds({ w: 3000, h: 3000, x: 0, y: 0 })
 })
 
@@ -253,7 +258,7 @@ describe('when shape is hollow', () => {
 	})
 
 	it('misses on pointer down over shape, misses on pointer up', () => {
-		editor.pointerMove(75, 75)
+		editor.pointerMove(10, 10)
 		expect(editor.getHoveredShapeId()).toBe(null)
 		editor.pointerDown()
 		expect(editor.getSelectedShapeIds()).toEqual([])
@@ -548,7 +553,7 @@ describe('when shape is inside of a frame', () => {
 	})
 
 	it('misses on pointer down over shape, misses on pointer up', () => {
-		editor.pointerMove(50, 50)
+		editor.pointerMove(35, 35)
 		expect(editor.getHoveredShapeId()).toBe(null)
 		editor.pointerDown() // inside of box1 (which is empty)
 		expect(editor.getSelectedShapeIds()).toEqual([])
@@ -967,7 +972,7 @@ describe('Selects inside of groups', () => {
 			{ id: ids.box1, type: 'geo', x: 0, y: 0, props: { w: 100, h: 100 } },
 			{ id: ids.box2, type: 'geo', x: 200, y: 0, props: { w: 100, h: 100, fill: 'solid' } },
 		])
-		editor.groupShapes([ids.box1, ids.box2], ids.group1)
+		editor.groupShapes([ids.box1, ids.box2], { groupId: ids.group1 })
 		editor.selectNone()
 	})
 
@@ -1235,7 +1240,7 @@ describe('when shift+selecting', () => {
 	it('does not add hollow shape to selection on pointer up when in empty space', () => {
 		expect(editor.getSelectedShapeIds()).toEqual([ids.box1])
 		editor.keyDown('Shift')
-		editor.pointerMove(275, 75) // above box 2
+		editor.pointerMove(215, 75) // above box 2
 		expect(editor.getHoveredShapeId()).toBe(null)
 		editor.pointerDown()
 		expect(editor.getSelectedShapeIds()).toEqual([ids.box1])
@@ -1256,7 +1261,7 @@ describe('when shift+selecting', () => {
 
 	it('does not add and remove hollow shape from selection on pointer up (without causing an edit by double clicks)', () => {
 		editor.keyDown('Shift')
-		editor.pointerMove(275, 75) // above box 2, empty space
+		editor.pointerMove(215, 75) // above box 2, empty space
 		expect(editor.getHoveredShapeId()).toBe(null)
 		editor.pointerDown()
 		expect(editor.getSelectedShapeIds()).toEqual([ids.box1])
@@ -1270,7 +1275,7 @@ describe('when shift+selecting', () => {
 
 	it('does not add and remove hollow shape from selection on double clicks (without causing an edit by double clicks)', () => {
 		editor.keyDown('Shift')
-		editor.pointerMove(275, 75) // above box 2, empty space
+		editor.pointerMove(215, 75) // above box 2, empty space
 		expect(editor.getHoveredShapeId()).toBe(null)
 		editor.doubleClick()
 		expect(editor.getSelectedShapeIds()).toEqual([ids.box1])
@@ -1288,7 +1293,7 @@ describe('when shift+selecting a group', () => {
 				{ id: ids.box3, type: 'geo', x: 400, y: 0, props: { fill: 'solid' } },
 				{ id: ids.box4, type: 'geo', x: 600, y: 0 },
 			])
-			.groupShapes([ids.box2, ids.box3], ids.group1)
+			.groupShapes([ids.box2, ids.box3], { groupId: ids.group1 })
 			.select(ids.box1)
 	})
 
@@ -1304,7 +1309,7 @@ describe('when shift+selecting a group', () => {
 
 	it('does not add to selection on shift + on pointer up when clicking in hollow shape', () => {
 		editor.keyDown('Shift')
-		editor.pointerMove(275, 75)
+		editor.pointerMove(215, 75)
 		expect(editor.getHoveredShapeId()).toBe(null)
 		editor.pointerDown() // inside of box 2, inside of group 1
 		expect(editor.getSelectedShapeIds()).toEqual([ids.box1])
@@ -1333,7 +1338,7 @@ describe('when shift+selecting a group', () => {
 	})
 
 	it('does not select when shift+clicking into hollow shape inside of a group', () => {
-		editor.pointerMove(275, 75)
+		editor.pointerMove(215, 75)
 		editor.keyDown('Shift')
 		expect(editor.getHoveredShapeId()).toBe(null)
 		editor.pointerDown() // inside of box 2, empty space, inside of group 1
@@ -1344,7 +1349,7 @@ describe('when shift+selecting a group', () => {
 
 	it('does not deselect on pointer up when clicking into empty space in hollow shape', () => {
 		editor.keyDown('Shift')
-		editor.pointerMove(275, 75)
+		editor.pointerMove(215, 75)
 		expect(editor.getHoveredShapeId()).toBe(null)
 		editor.pointerDown() // inside of box 2, empty space, inside of group 1
 		expect(editor.getSelectedShapeIds()).toEqual([ids.box1])
@@ -1370,9 +1375,9 @@ describe('When children / descendants of a group are selected', () => {
 				{ id: ids.box4, type: 'geo', x: 600, y: 0 },
 				{ id: ids.box5, type: 'geo', x: 800, y: 0 },
 			])
-			.groupShapes([ids.box1, ids.box2], ids.group1)
-			.groupShapes([ids.box3, ids.box4], ids.group2)
-			.groupShapes([ids.group1, ids.group2], ids.group3)
+			.groupShapes([ids.box1, ids.box2], { groupId: ids.group1 })
+			.groupShapes([ids.box3, ids.box4], { groupId: ids.group2 })
+			.groupShapes([ids.group1, ids.group2], { groupId: ids.group3 })
 			.selectNone()
 	})
 
@@ -1445,8 +1450,8 @@ describe('When pressing the enter key with groups selected', () => {
 				{ id: ids.box4, type: 'geo', x: 600, y: 0 },
 				{ id: ids.box5, type: 'geo', x: 800, y: 0 },
 			])
-			.groupShapes([ids.box1, ids.box2], ids.group1)
-			.groupShapes([ids.box3, ids.box4], ids.group2)
+			.groupShapes([ids.box1, ids.box2], { groupId: ids.group1 })
+			.groupShapes([ids.box3, ids.box4], { groupId: ids.group2 })
 	})
 
 	it('selects the children of the groups on enter up', () => {
@@ -1460,7 +1465,7 @@ describe('When pressing the enter key with groups selected', () => {
 	})
 
 	it('repeats children of the groups on enter up', () => {
-		editor.groupShapes([ids.group1, ids.group2], ids.group3)
+		editor.groupShapes([ids.group1, ids.group2], { groupId: ids.group3 })
 		editor.select(ids.group3)
 		expect(editor.getSelectedShapeIds()).toEqual([ids.group3])
 		editor.keyDown('Enter').keyUp('Enter')
@@ -1490,8 +1495,8 @@ describe('When double clicking an editable shape', () => {
 				x: 200,
 				y: 50,
 				props: {
-					start: { type: 'point', x: 0, y: 0 },
-					end: { type: 'point', x: 100, y: 0 },
+					start: { x: 0, y: 0 },
+					end: { x: 100, y: 0 },
 				},
 			},
 		])
@@ -1527,7 +1532,7 @@ describe('When double clicking an editable shape', () => {
 
 	it('starts editing a child of a group on triple (not double!) click', () => {
 		editor.createShape({ id: ids.box2, type: 'geo', x: 300, y: 0 })
-		editor.groupShapes([ids.box1, ids.box2], ids.group1)
+		editor.groupShapes([ids.box1, ids.box2], { groupId: ids.group1 })
 		editor.selectNone()
 		editor.pointerMove(50, 50).click() // clicks on the shape label
 		expect(editor.getSelectedShapeIds()).toEqual([ids.group1])
@@ -1552,7 +1557,7 @@ describe('shift brushes to add to the selection', () => {
 				{ id: ids.box3, type: 'geo', x: 400, y: 0 },
 				{ id: ids.box4, type: 'geo', x: 600, y: 200 },
 			])
-			.groupShapes([ids.box3, ids.box4], ids.group1)
+			.groupShapes([ids.box3, ids.box4], { groupId: ids.group1 })
 	})
 
 	it('does not select when brushing into margin', () => {
@@ -1669,7 +1674,7 @@ describe('scribble brushes to add to the selection', () => {
 	})
 
 	it('selects a group when scribble is colliding with the groups child shape', () => {
-		editor.groupShapes([ids.box3, ids.box4], ids.group1)
+		editor.groupShapes([ids.box3, ids.box4], { groupId: ids.group1 })
 		editor.pointerMove(650, -50)
 		editor.keyDown('Alt')
 		editor.pointerDown()
@@ -1920,5 +1925,119 @@ describe('When a shape is locked', () => {
 		editor.pointerUp()
 		editor.expectToBeIn('select.idle')
 		expect(editor.getSelectedShapeIds()).toEqual([ids.box2, ids.box3])
+	})
+})
+
+it('Ignores locked shapes when hovering', () => {
+	editor.createShape({ x: 100, y: 100, type: 'geo', props: { fill: 'solid' } })
+	const a = editor.getLastCreatedShape()
+	editor.createShape({ x: 100, y: 100, type: 'geo', props: { fill: 'solid' } })
+	const b = editor.getLastCreatedShape()
+	expect(a).not.toBe(b)
+
+	// lock b
+	editor.toggleLock([b])
+
+	// Hover both shapes
+	editor.pointerMove(100, 100)
+
+	// Even though b is in front of A, A should be the hovered shape
+	expect(editor.getHoveredShapeId()).toBe(a.id)
+	// right click should select the hovered shape
+	editor.rightClick()
+	expect(editor.getSelectedShapeIds()).toEqual([a.id])
+
+	// Delete A
+	editor.cancel()
+	editor.deleteShape(a)
+	// now that A is gone, we should have no hovered shape
+	expect(editor.getHoveredShapeId()).toBe(null)
+	// Now that A is gone, right click should be b
+	editor.rightClick()
+	expect(editor.getSelectedShapeIds()).toEqual([b.id])
+})
+
+describe('Edge scrolling', () => {
+	it('moves the camera correctly when delay and duration are zero', () => {
+		editor = new TestEditor({
+			options: {
+				edgeScrollDelay: 0,
+				edgeScrollEaseDuration: 0,
+			},
+		})
+		editor.setScreenBounds({ w: 3000, h: 3000, x: 0, y: 0 })
+		editor.user.updateUserPreferences({ edgeScrollSpeed: 1 })
+
+		editor.pointerMove(300, 300)
+		editor.pointerDown()
+		editor.pointerMove(0, 0)
+
+		expect(editor.getCamera()).toMatchObject({
+			x: editor.options.edgeScrollSpeed,
+			y: editor.options.edgeScrollSpeed,
+		})
+
+		editor.forceTick()
+
+		expect(editor.getCamera()).toMatchObject({
+			x: editor.options.edgeScrollSpeed * 2,
+			y: editor.options.edgeScrollSpeed * 2,
+		})
+	})
+
+	it('moves the camera correctly when delay is 16 and duration are zero', () => {
+		editor = new TestEditor({
+			options: {
+				edgeScrollDelay: 16,
+				edgeScrollEaseDuration: 0,
+			},
+		})
+		editor.setScreenBounds({ w: 3000, h: 3000, x: 0, y: 0 })
+		editor.user.updateUserPreferences({ edgeScrollSpeed: 1 })
+
+		editor.pointerMove(300, 300)
+		editor.pointerDown()
+		editor.pointerMove(0, 0)
+
+		// one tick's length of delay
+		expect(editor.getCamera()).toMatchObject({
+			x: 0,
+			y: 0,
+		})
+
+		editor.forceTick()
+
+		expect(editor.getCamera()).toMatchObject({
+			x: editor.options.edgeScrollSpeed,
+			y: editor.options.edgeScrollSpeed,
+		})
+	})
+
+	it('moves the camera correctly when delay is 0 and duration is 32', () => {
+		editor = new TestEditor({
+			options: {
+				edgeScrollDelay: 0,
+				edgeScrollEaseDuration: 32,
+			},
+		})
+		editor.setScreenBounds({ w: 3000, h: 3000, x: 0, y: 0 })
+		editor.user.updateUserPreferences({ edgeScrollSpeed: 1 })
+
+		editor.pointerMove(300, 300)
+		editor.pointerDown()
+		editor.pointerMove(0, 0)
+
+		// one tick's length of delay
+		expect(editor.getCamera()).toMatchObject({
+			x: editor.options.edgeScrollSpeed * 0.125,
+			y: editor.options.edgeScrollSpeed * 0.125,
+		})
+
+		editor.forceTick()
+
+		expect(editor.getCamera()).toMatchObject({
+			x: editor.options.edgeScrollSpeed * 1.125,
+			y: editor.options.edgeScrollSpeed * 1.125,
+		})
 	})
 })

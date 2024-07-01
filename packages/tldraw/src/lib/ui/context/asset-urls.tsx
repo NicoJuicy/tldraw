@@ -1,4 +1,5 @@
-import { createContext, useContext } from 'react'
+import { Image } from '@tldraw/editor'
+import { createContext, useContext, useEffect } from 'react'
 import { TLUiAssetUrls } from '../assetUrls'
 
 /** @internal */
@@ -14,6 +15,19 @@ export function AssetUrlsProvider({
 	assetUrls: TLUiAssetUrls
 	children: React.ReactNode
 }) {
+	useEffect(() => {
+		for (const src of Object.values(assetUrls.icons)) {
+			const image = Image()
+			image.src = src
+			image.decode()
+		}
+		for (const src of Object.values(assetUrls.embedIcons)) {
+			const image = Image()
+			image.src = src
+			image.decode()
+		}
+	}, [assetUrls])
+
 	return <AssetUrlsContext.Provider value={assetUrls}>{children}</AssetUrlsContext.Provider>
 }
 

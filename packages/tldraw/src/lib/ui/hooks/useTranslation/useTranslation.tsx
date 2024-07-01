@@ -23,11 +23,16 @@ export interface TLUiTranslationProviderProps {
 /** @public */
 export type TLUiTranslationContextType = TLUiTranslation
 
-const TranslationsContext = React.createContext<TLUiTranslationContextType>(
-	{} as TLUiTranslationContextType
-)
+const TranslationsContext = React.createContext<TLUiTranslationContextType | null>(null)
 
-const useCurrentTranslation = () => React.useContext(TranslationsContext)
+/** @public */
+export function useCurrentTranslation() {
+	const translations = React.useContext(TranslationsContext)
+	if (!translations) {
+		throw new Error('useCurrentTranslation must be used inside of <TldrawUiContextProvider />')
+	}
+	return translations
+}
 
 /**
  * Provides a translation context to the editor.
@@ -47,6 +52,7 @@ export const TranslationProvider = track(function TranslationProvider({
 			return {
 				locale: 'en',
 				label: 'English',
+				dir: 'ltr',
 				messages: { ...DEFAULT_TRANSLATION, ...overrides['en'] },
 			}
 		}
@@ -54,6 +60,7 @@ export const TranslationProvider = track(function TranslationProvider({
 		return {
 			locale: 'en',
 			label: 'English',
+			dir: 'ltr',
 			messages: DEFAULT_TRANSLATION,
 		}
 	})

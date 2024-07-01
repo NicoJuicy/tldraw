@@ -1,9 +1,9 @@
-import react from '@vitejs/plugin-react'
+import react from '@vitejs/plugin-react-swc'
 import path from 'path'
 import { PluginOption, defineConfig } from 'vite'
 
 export default defineConfig({
-	plugins: [react(), exampleReadmePlugin()],
+	plugins: [react({ tsDecorators: true }), exampleReadmePlugin()],
 	root: path.join(__dirname, 'src'),
 	publicDir: path.join(__dirname, 'public'),
 	build: {
@@ -70,6 +70,7 @@ function exampleReadmePlugin(): PluginOption {
 				`export const loadComponent = async () => {`,
 				`    return (await import(${JSON.stringify(frontmatter.component)})).default;`,
 				`};`,
+				`export const keywords = ${JSON.stringify(frontmatter.keywords)};`,
 			]
 
 			return result.join('\n')
@@ -105,11 +106,17 @@ function parseFrontMatter(data: unknown, fileName: string) {
 		throw new Error(`Frontmatter key 'hide' must be boolean in ${fileName}`)
 	}
 
+	const keywords = 'keywords' in data ? data.keywords : []
+	if (!Array.isArray(keywords)) {
+		throw new Error(`Frontmatter key 'keywords' must be array in ${fileName}`)
+	}
+
 	return {
 		title: data.title,
 		component: data.component,
 		priority,
 		category,
 		hide,
+		keywords,
 	}
 }

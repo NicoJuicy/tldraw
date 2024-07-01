@@ -1,11 +1,18 @@
 import {
+	Editor,
 	StateNode,
 	TLEventHandlers,
 	TLInterruptEvent,
 	TLNoteShape,
 	TLPointerEventInfo,
+	TLShapeId,
+	Vec,
 	createShapeId,
 } from '@tldraw/editor'
+import {
+	NOTE_ADJACENT_POSITION_SNAP_RADIUS,
+	getAvailableNoteAdjacentPositions,
+} from '../noteHelpers'
 
 export class Pointing extends StateNode {
 	static override id = 'pointing'
@@ -21,16 +28,43 @@ export class Pointing extends StateNode {
 	shape = {} as TLNoteShape
 
 	override onEnter = () => {
-		this.wasFocusedOnEnter = !this.editor.getIsMenuOpen()
+		const { editor } = this
+
+		this.wasFocusedOnEnter = !editor.getIsMenuOpen()
+
 		if (this.wasFocusedOnEnter) {
-			this.shape = this.createShape()
+			const id = createShapeId()
+			this.markId = `creating:${id}`
+			editor.mark(this.markId)
+
+			// Check for note pits; if the pointer is close to one, place the note centered on the pit
+			const center = this.editor.inputs.originPagePoint.clone()
+			const offset = getNoteShapeAdjacentPositionOffset(
+				this.editor,
+				center,
+				this.editor.user.getIsDynamicResizeMode() ? 1 / this.editor.getZoomLevel() : 1
+			)
+			if (offset) {
+				center.sub(offset)
+			}
+			this.shape = createNoteShape(this.editor, id, center)
 		}
 	}
 
 	override onPointerMove: TLEventHandlers['onPointerMove'] = (info) => {
 		if (this.editor.inputs.isDragging) {
 			if (!this.wasFocusedOnEnter) {
-				this.shape = this.createShape()
+				const id = createShapeId()
+				const center = this.editor.inputs.originPagePoint.clone()
+				const offset = getNoteShapeAdjacentPositionOffset(
+					this.editor,
+					center,
+					this.editor.user.getIsDynamicResizeMode() ? 1 / this.editor.getZoomLevel() : 1
+				)
+				if (offset) {
+					center.sub(offset)
+				}
+				this.shape = createNoteShape(this.editor, id, center)
 			}
 
 			this.editor.setCurrentTool('select.translating', {
@@ -82,40 +116,48 @@ export class Pointing extends StateNode {
 		this.editor.bailToMark(this.markId)
 		this.parent.transition('idle', this.info)
 	}
+}
 
-	private createShape() {
-		const {
-			inputs: { originPagePoint },
-		} = this.editor
-
-		const id = createShapeId()
-		this.markId = `creating:${id}`
-		this.editor.mark(this.markId)
-
-		this.editor
-			.createShapes([
-				{
-					id,
-					type: 'note',
-					x: originPagePoint.x,
-					y: originPagePoint.y,
-				},
-			])
-			.select(id)
-
-		const shape = this.editor.getShape<TLNoteShape>(id)!
-		const bounds = this.editor.getShapeGeometry(shape).bounds
-
-		// Center the text around the created point
-		this.editor.updateShapes([
-			{
-				id,
-				type: 'note',
-				x: shape.x - bounds.width / 2,
-				y: shape.y - bounds.height / 2,
-			},
-		])
-
-		return this.editor.getShape<TLNoteShape>(id)!
+export function getNoteShapeAdjacentPositionOffset(editor: Editor, center: Vec, scale: number) {
+	let min = NOTE_ADJACENT_POSITION_SNAP_RADIUS / editor.getZoomLevel() // in screen space
+	let offset: Vec | undefined
+	for (const pit of getAvailableNoteAdjacentPositions(editor, 0, scale, 0)) {
+		// only check page rotations of zero
+		const deltaToPit = Vec.Sub(center, pit)
+		const dist = deltaToPit.len()
+		if (dist < min) {
+			min = dist
+			offset = deltaToPit
+		}
 	}
+	return offset
+}
+
+export function createNoteShape(editor: Editor, id: TLShapeId, center: Vec) {
+	editor
+		.createShape({
+			id,
+			type: 'note',
+			x: center.x,
+			y: center.y,
+			props: {
+				scale: editor.user.getIsDynamicResizeMode() ? 1 / editor.getZoomLevel() : 1,
+			},
+		})
+		.select(id)
+
+	const shape = editor.getShape<TLNoteShape>(id)!
+	const bounds = editor.getShapeGeometry(shape).bounds
+
+	// Center the text around the created point
+	editor.updateShapes([
+		{
+			id,
+			type: 'note',
+			x: shape.x - bounds.width / 2,
+			y: shape.y - bounds.height / 2,
+		},
+	])
+
+	return editor.getShape<TLNoteShape>(id)!
 }

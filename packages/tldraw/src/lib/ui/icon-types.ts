@@ -3,20 +3,11 @@
 
 /** @public */
 export type TLUiIconType =
-	| 'align-bottom-center'
-	| 'align-bottom-left'
-	| 'align-bottom-right'
 	| 'align-bottom'
-	| 'align-center-center'
 	| 'align-center-horizontal'
-	| 'align-center-left'
-	| 'align-center-right'
 	| 'align-center-vertical'
 	| 'align-left'
 	| 'align-right'
-	| 'align-top-center'
-	| 'align-top-left'
-	| 'align-top-right'
 	| 'align-top'
 	| 'arrow-left'
 	| 'arrowhead-arrow'
@@ -27,15 +18,12 @@ export type TLUiIconType =
 	| 'arrowhead-square'
 	| 'arrowhead-triangle-inverted'
 	| 'arrowhead-triangle'
-	| 'aspect-ratio'
-	| 'avatar'
 	| 'blob'
 	| 'bring-forward'
 	| 'bring-to-front'
+	| 'broken'
 	| 'check-circle'
 	| 'check'
-	| 'checkbox-checked'
-	| 'checkbox-empty'
 	| 'chevron-down'
 	| 'chevron-left'
 	| 'chevron-right'
@@ -44,17 +32,14 @@ export type TLUiIconType =
 	| 'chevrons-sw'
 	| 'clipboard-copied'
 	| 'clipboard-copy'
-	| 'code'
-	| 'collab'
 	| 'color'
-	| 'comment'
 	| 'cross-2'
 	| 'cross-circle'
-	| 'cross'
 	| 'dash-dashed'
 	| 'dash-dotted'
 	| 'dash-draw'
 	| 'dash-solid'
+	| 'disconnected'
 	| 'discord'
 	| 'distribute-horizontal'
 	| 'distribute-vertical'
@@ -64,9 +49,8 @@ export type TLUiIconType =
 	| 'drag-handle-dots'
 	| 'duplicate'
 	| 'edit'
-	| 'error'
 	| 'external-link'
-	| 'file'
+	| 'fill-fill'
 	| 'fill-none'
 	| 'fill-pattern'
 	| 'fill-semi'
@@ -85,6 +69,7 @@ export type TLUiIconType =
 	| 'geo-cloud'
 	| 'geo-diamond'
 	| 'geo-ellipse'
+	| 'geo-heart'
 	| 'geo-hexagon'
 	| 'geo-octagon'
 	| 'geo-oval'
@@ -98,18 +83,17 @@ export type TLUiIconType =
 	| 'geo-x-box'
 	| 'github'
 	| 'group'
-	| 'hidden'
-	| 'image'
+	| 'horizontal-align-end'
+	| 'horizontal-align-middle'
+	| 'horizontal-align-start'
 	| 'info-circle'
 	| 'leading'
 	| 'link'
-	| 'lock-small'
 	| 'lock'
 	| 'menu'
 	| 'minus'
 	| 'mixed'
 	| 'pack'
-	| 'page'
 	| 'plus'
 	| 'question-mark-circle'
 	| 'question-mark'
@@ -117,15 +101,9 @@ export type TLUiIconType =
 	| 'reset-zoom'
 	| 'rotate-ccw'
 	| 'rotate-cw'
-	| 'ruler'
-	| 'search'
 	| 'send-backward'
 	| 'send-to-back'
-	| 'settings-horizontal'
-	| 'settings-vertical-1'
-	| 'settings-vertical'
 	| 'share-1'
-	| 'share-2'
 	| 'size-extra-large'
 	| 'size-large'
 	| 'size-medium'
@@ -134,16 +112,14 @@ export type TLUiIconType =
 	| 'spline-line'
 	| 'stack-horizontal'
 	| 'stack-vertical'
-	| 'status-offline'
-	| 'status-online'
 	| 'stretch-horizontal'
 	| 'stretch-vertical'
 	| 'text-align-center'
-	| 'text-align-justify'
 	| 'text-align-left'
 	| 'text-align-right'
+	| 'toggle-off'
+	| 'toggle-on'
 	| 'tool-arrow'
-	| 'tool-embed'
 	| 'tool-eraser'
 	| 'tool-frame'
 	| 'tool-hand'
@@ -154,39 +130,27 @@ export type TLUiIconType =
 	| 'tool-note'
 	| 'tool-pencil'
 	| 'tool-pointer'
+	| 'tool-screenshot'
 	| 'tool-text'
 	| 'trash'
-	| 'triangle-down'
-	| 'triangle-up'
 	| 'twitter'
 	| 'undo'
 	| 'ungroup'
-	| 'unlock-small'
 	| 'unlock'
-	| 'vertical-align-center'
 	| 'vertical-align-end'
+	| 'vertical-align-middle'
 	| 'vertical-align-start'
-	| 'visible'
 	| 'warning-triangle'
 	| 'zoom-in'
 	| 'zoom-out'
 
 /** @public */
 export const iconTypes = [
-	'align-bottom-center',
-	'align-bottom-left',
-	'align-bottom-right',
 	'align-bottom',
-	'align-center-center',
 	'align-center-horizontal',
-	'align-center-left',
-	'align-center-right',
 	'align-center-vertical',
 	'align-left',
 	'align-right',
-	'align-top-center',
-	'align-top-left',
-	'align-top-right',
 	'align-top',
 	'arrow-left',
 	'arrowhead-arrow',
@@ -197,15 +161,12 @@ export const iconTypes = [
 	'arrowhead-square',
 	'arrowhead-triangle-inverted',
 	'arrowhead-triangle',
-	'aspect-ratio',
-	'avatar',
 	'blob',
 	'bring-forward',
 	'bring-to-front',
+	'broken',
 	'check-circle',
 	'check',
-	'checkbox-checked',
-	'checkbox-empty',
 	'chevron-down',
 	'chevron-left',
 	'chevron-right',
@@ -214,17 +175,14 @@ export const iconTypes = [
 	'chevrons-sw',
 	'clipboard-copied',
 	'clipboard-copy',
-	'code',
-	'collab',
 	'color',
-	'comment',
 	'cross-2',
 	'cross-circle',
-	'cross',
 	'dash-dashed',
 	'dash-dotted',
 	'dash-draw',
 	'dash-solid',
+	'disconnected',
 	'discord',
 	'distribute-horizontal',
 	'distribute-vertical',
@@ -234,9 +192,8 @@ export const iconTypes = [
 	'drag-handle-dots',
 	'duplicate',
 	'edit',
-	'error',
 	'external-link',
-	'file',
+	'fill-fill',
 	'fill-none',
 	'fill-pattern',
 	'fill-semi',
@@ -255,6 +212,7 @@ export const iconTypes = [
 	'geo-cloud',
 	'geo-diamond',
 	'geo-ellipse',
+	'geo-heart',
 	'geo-hexagon',
 	'geo-octagon',
 	'geo-oval',
@@ -268,18 +226,17 @@ export const iconTypes = [
 	'geo-x-box',
 	'github',
 	'group',
-	'hidden',
-	'image',
+	'horizontal-align-end',
+	'horizontal-align-middle',
+	'horizontal-align-start',
 	'info-circle',
 	'leading',
 	'link',
-	'lock-small',
 	'lock',
 	'menu',
 	'minus',
 	'mixed',
 	'pack',
-	'page',
 	'plus',
 	'question-mark-circle',
 	'question-mark',
@@ -287,15 +244,9 @@ export const iconTypes = [
 	'reset-zoom',
 	'rotate-ccw',
 	'rotate-cw',
-	'ruler',
-	'search',
 	'send-backward',
 	'send-to-back',
-	'settings-horizontal',
-	'settings-vertical-1',
-	'settings-vertical',
 	'share-1',
-	'share-2',
 	'size-extra-large',
 	'size-large',
 	'size-medium',
@@ -304,16 +255,14 @@ export const iconTypes = [
 	'spline-line',
 	'stack-horizontal',
 	'stack-vertical',
-	'status-offline',
-	'status-online',
 	'stretch-horizontal',
 	'stretch-vertical',
 	'text-align-center',
-	'text-align-justify',
 	'text-align-left',
 	'text-align-right',
+	'toggle-off',
+	'toggle-on',
 	'tool-arrow',
-	'tool-embed',
 	'tool-eraser',
 	'tool-frame',
 	'tool-hand',
@@ -324,19 +273,16 @@ export const iconTypes = [
 	'tool-note',
 	'tool-pencil',
 	'tool-pointer',
+	'tool-screenshot',
 	'tool-text',
 	'trash',
-	'triangle-down',
-	'triangle-up',
 	'twitter',
 	'undo',
 	'ungroup',
-	'unlock-small',
 	'unlock',
-	'vertical-align-center',
 	'vertical-align-end',
+	'vertical-align-middle',
 	'vertical-align-start',
-	'visible',
 	'warning-triangle',
 	'zoom-in',
 	'zoom-out',
